@@ -150,6 +150,8 @@ nettacker -h
 ```
 docker pull owasp/nettacker
 docker run -it owasp/nettacker /bin/bash
+pip3 install .
+python3 nettacker.py
 ```
 
 For usage instructions and examples please read [Usage.md](Usage.md)

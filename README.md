@@ -36,10 +36,28 @@ OWASP Nettacker project is created to automate information gathering, vulnerabil
 ____________
 Quick Setup & Run
 ============
+
+1. Install docker-compose and docker first
 ```bash
-$ docker-compose up -d && docker exec -it nettacker-nettacker-1 /bin/bash
-# poetry run python nettacker.py -i owasp.org -s -m port_scan
+# Installing docker
+sudo apt install docker
+
+# Insalling docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.29.2/docker-compose-$(uname -s)-$(uname -m)"  -o /usr/local/bin/docker-compose                                     ─╯
+sudo mv /usr/local/bin/docker-compose /usr/bin/docker-compose
+sudo chmod +x /usr/bin/docker-compose
 ```
+
+2. Use sudo in this command (you will need permissions)
+```bash
+sudo docker-compose up -d && sudo docker exec -it nettacker /bin/bash
+```
+
+3. Run this inside the container
+```bash
+poetry run python nettacker.py -i owasp.org -s -m port_scan
+```
+
 * Results are accessible from your (https://localhost:5000) or https://nettacker-api.z3r0d4y.com:5000/ (pointed to your localhost)
 * The local database is `.data/nettacker.db` (sqlite).
 * Default results path is `.data/results`
