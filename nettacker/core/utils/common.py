@@ -212,7 +212,7 @@ def string_to_bytes(string):
 AVAILABLE_DATA_FUNCTIONS = {
     "passwords": {"read_from_file"},
     "paths": {"read_from_file"},
-    "urls": {"read_from_file"},
+    "urls": {"custom_file_read", "read_from_file"},
 }
 
 
@@ -231,7 +231,12 @@ def apply_data_functions(data):
             if fn_name in AVAILABLE_DATA_FUNCTIONS[item]:
                 fn = getattr(importlib.import_module("nettacker.core.fuzzer"), fn_name)
                 if fn is not None:
-                    original_data[item] = fn(data[item][fn_name])
+                    try:
+                        original_data[item] = fn(data[item][fn_name])
+                        break
+                    except FileNotFoundError:
+                        print('in here')
+                        pass
 
     def apply_data_functions_old():
         function_results = {}
