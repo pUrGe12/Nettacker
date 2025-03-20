@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 
 import texttable
+import yaml
 
 from nettacker import logger
 from nettacker.config import Config, version_info
@@ -119,6 +120,53 @@ def create_compare_text_table(results):
     return table.draw() + "\n\n"
 
 
+def create_sarif_output(all_scan_logs):
+    pass
+
+
+def create_dd_specific_json(all_scan_logs):
+    severity_mapping = {1: "Info", 2: "Low", 3: "Medium", 4: "High", 5: "Critical"}
+
+    findings = []
+
+    modules_used = {log["module_name"].strip() for log in all_scan_logs}
+    date_ = {log["date"].strip() for log in all_scan_logs}
+    module_path = Config.path.modules_dir
+    submodules_used = {
+        f"{str(module_path).strip()}/{i.split('_')[1].strip()}/{i.split('_')[0].strip()}.yaml"
+        for i in modules_used
+    }
+
+    for module_name, module_file, date in zip(modules_used, submodules_used, date_):
+        with open(module_file) as fp:
+            data = yaml.safe_load(fp)
+
+        severity = data["info"]["severity"]
+        description = data["info"]["description"]
+
+        if severity >= 9:
+            severity = severity_mapping.get(5)
+        elif severity >= 7:
+            severity = severity_mapping.get(4)
+        elif severity >= 4:
+            severity = severity_mapping.get(3)
+        elif severity > 0:
+            severity = severity_mapping.get(2)
+        else:
+            severity = severity_mapping.get(1)
+
+        findings.append(
+            {
+                "title": module_name.strip(),
+                "severity": severity.strip(),
+                "description": description.strip(),
+                "date": date.split(" ")[0].strip()
+            }
+        )
+
+    return str(json.dumps({"findings": findings}, indent=4))
+
+
 def create_report(options, scan_id):
     """
     sort all events, create log file in HTML/TEXT/JSON and remove old logs
@@ -182,6 +230,11 @@ def create_report(options, scan_id):
         with open(report_path_filename, "w", encoding="utf-8") as report_file:
             report_file.write(html_table_content + "\n")
             report_file.close()
+    elif len(report_path_filename) >= 5 and report_path_filename[-8:] == ".dd.json":
+        with open(report_path_filename, "w", encoding="utf-8") as report_file:
+            dd_content_json = create_dd_specific_json(all_scan_logs)
+            report_file.write(dd_content_json + "\n")
+            report_file.close()
     elif len(report_path_filename) >= 5 and report_path_filename[-5:] == ".json":
         with open(report_path_filename, "w", encoding="utf-8") as report_file:
             report_file.write(str(json.dumps(all_scan_logs)) + "\n")
@@ -195,7 +248,11 @@ def create_report(options, scan_id):
                 dict_data = {key: value for key, value in log_list.items() if key in keys}
                 writer.writerow(dict_data)
             csvfile.close()
-
+    elif len(report_path_filename) >= 7 and report_path_filename[-7:] == ".sarif":
+        with open(report_path_filename, "w", encoding="utf-8") as report_file:
+            sarif_content = create_sarif_output(all_scan_logs)
+            report_file.write(sarif_content + "\n")
+            report_file.close()
     else:
         with open(report_path_filename, "w", encoding="utf-8") as report_file:
             report_file.write(build_text_table(all_scan_logs))
