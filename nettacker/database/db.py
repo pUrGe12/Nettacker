@@ -211,6 +211,7 @@ def submit_temp_logs_to_db(log):
                     log["target"],
                     str(log["date"]),
                     log["module_name"],
+                    log["scan_id"],
                     log["event_name"],
                     json.dumps(log["port"]),
                     json.dumps(log["event"]),
