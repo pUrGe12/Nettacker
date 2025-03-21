@@ -27,6 +27,7 @@ from nettacker.core.module import Module
 from nettacker.core.socks_proxy import set_socks_proxy
 from nettacker.core.utils import common as common_utils
 from nettacker.core.utils.common import wait_for_threads_to_finish
+from nettacker.core.tasks import scan_target_task
 from nettacker.database.db import find_events, remove_old_logs
 from nettacker.database.mysql import mysql_create_database, mysql_create_tables
 from nettacker.database.postgresql import postgres_create_database
@@ -239,49 +240,11 @@ class Nettacker(ArgParser):
             target_groups.remove([])
 
         log.info(_("start_multi_process").format(len(self.arguments.targets), len(target_groups)))
-        active_processes = []
-        for t_id, target_groups in enumerate(target_groups):
-            process = multiprocess.Process(
-                target=self.scan_target_group, args=(target_groups, scan_id, t_id)
-            )
-            process.start()
-            active_processes.append(process)
+        
+        for t_id, target_group in enumerate(target_groups):
+            self.scan_target_group(target_group, scan_id, t_id)
 
-        return wait_for_threads_to_finish(active_processes, sub_process=True)
-
-    def scan_target(
-        self,
-        target,
-        module_name,
-        scan_id,
-        process_number,
-        thread_number,
-        total_number_threads,
-    ):
-        options = copy.deepcopy(self.arguments)
-
-        socket.socket, socket.getaddrinfo = set_socks_proxy(options.socks_proxy)
-        module = Module(
-            module_name,
-            options,
-            target,
-            scan_id,
-            process_number,
-            thread_number,
-            total_number_threads,
-        )
-        module.load()
-        module.generate_loops()
-        module.sort_loops()
-        module.start()
-
-        log.verbose_event_info(
-            _("finished_parallel_module_scan").format(
-                process_number, module_name, target, thread_number, total_number_threads
-            )
-        )
-
-        return os.EX_OK
+        return True
 
     def scan_target_group(self, targets, scan_id, process_number):
         active_threads = []
@@ -291,19 +254,16 @@ class Nettacker(ArgParser):
 
         for target in targets:
             for module_name in self.arguments.selected_modules:
-                thread = Thread(
-                    target=self.scan_target,
-                    args=(
-                        target,
-                        module_name,
-                        scan_id,
-                        process_number,
-                        total_number_of_modules_counter,
-                        total_number_of_modules,
-                    ),
+                scan_target_task(
+                    target = target,
+                    arguments = copy.deepcopy(self.arguments).__dict__,
+                    module_name = module_name,
+                    scan_id = scan_id,
+                    process_number = process_number,
+                    thread_number = total_number_of_modules_counter,
+                    total_number_threads = total_number_of_modules
                 )
-                thread.name = f"{target} -> {module_name}"
-                thread.start()
+
                 log.verbose_event_info(
                     _("start_parallel_module_scan").format(
                         process_number,
@@ -314,10 +274,4 @@ class Nettacker(ArgParser):
                     )
                 )
                 total_number_of_modules_counter += 1
-                active_threads.append(thread)
-                if not wait_for_threads_to_finish(
-                    active_threads, self.arguments.parallel_module_scan, True
-                ):
-                    return False
-        wait_for_threads_to_finish(active_threads, maximum=None, terminable=True)
         return True

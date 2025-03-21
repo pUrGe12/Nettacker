@@ -93,7 +93,9 @@ send_unsuccess_event_from_module: "process-{0}|{1}|{2}|module-thread {3}/{4}|req
   {5}/{6}| all conditions failed"
 sending_module_request: "process-{0}|{1}|{2}|module-thread {3}/{4}| sending request
   {5} from {6}"
+sending_to_queue: "process-{0}|{1}|{2}| sending request {3} from {4}"
 verbose_event: enable verbose event to see state of each thread
+task_warning: "Error running the {0}engine_input"
 no_events_for_report: there are no events exist to create a report! skipping this section.
 set_hardware_usage: Set hardware usage while scanning. (low, normal, high, maximum)
 show_all_modules: show all modules and their information
