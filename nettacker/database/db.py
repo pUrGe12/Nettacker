@@ -1,8 +1,7 @@
 import json
 import time
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import apsw
 
 from nettacker import logger
 from nettacker.api.helpers import structure
@@ -37,43 +36,37 @@ def db_inputs(connection_type):
 
 def create_connection():
     """
-    a function to create connections to db with pessimistic approach
-
-    Returns:
-        connection if success otherwise False
+    Create an APSW connection to the SQLite DB only bypassing db_inputs.
     """
-    db_engine = create_engine(
-        db_inputs(Config.db.engine),
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True,
-    )
-    Session = sessionmaker(bind=db_engine)
+    DB_PATH = config.db.as_dict()["name"]
+    connection = apsw.Connection(DB_PATH)
+    connection.setbusytimeout(int(config.settings.timeout)*100)
+    cursor = connection.cursor()
 
-    return Session()
+    # Performance enhancing configurations. Put WAL cause that helps with concurrency
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    
+    return connection, cursor
 
 
-def send_submit_query(session):
+def send_submit_query(connection):
     """
-    a function to send submit based queries to db
-    (such as insert and update or delete), it retries 100 times if
-    connection returned an error.
-
-    Args:
-        session: session to commit
-
-    Returns:
-        True if submitted success otherwise False
+    Commit queries with retry logic. After every try, the connection
+    resets, so we must rollback. If it doesn't happen after a 100 times
+    then that means, connection failed.
     """
-    try:
-        for _ in range(1, 100):
-            try:
-                session.commit()
-                return True
-            except Exception:
-                time.sleep(0.1)
-    except Exception:
-        log.warn(messages("database_connect_fail"))
-        return False
+    for _ in range(100):
+        try:
+            connection.execute("COMMIT")
+            return True
+        except Exception as e:
+            connection.execute("ROLLBACK") 
+            time.sleep(0.1)
+        finally:
+            connection.close()
+    connection.close()
+    log.warn(messages("database_connect_fail"))
     return False
 
 
@@ -89,16 +82,29 @@ def submit_report_to_db(event):
         return True if submitted otherwise False
     """
     log.verbose_info(messages("inserting_report_db"))
-    session = create_connection()
-    session.add(
-        Report(
-            date=event["date"],
-            scan_unique_id=event["scan_id"],
-            report_path_filename=event["options"]["report_path_filename"],
-            options=json.dumps(event["options"]),
-        )
-    )
-    return send_submit_query(session)
+    connection, cursor = create_connection()
+    
+    try:
+        cursor.execute("BEGIN")
+        cursor.execute(
+            """
+            INSERT INTO reports (date, scan_unique_id, report_path_filename, options)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                str(event["date"]),
+                event["scan_id"],
+                event["options"]["report_path_filename"],
+                json.dumps(event["options"]),
+                ),
+            )
+        return send_submit_query(cursor)
+    except Exception as e:
+        cursor.execute("ROLLBACK")
+        print(f"Error happened here: {e}")
+        return False
+    finally:
+        cursor.close()
 
 
 def remove_old_logs(options):
@@ -112,15 +118,32 @@ def remove_old_logs(options):
     Returns:
         True if success otherwise False
     """
-    session = create_connection()
-    session.query(HostsLog).filter(
-        HostsLog.target == options["target"],
-        HostsLog.module_name == options["module_name"],
-        HostsLog.scan_unique_id != options["scan_id"],
-        HostsLog.scan_unique_id != options["scan_compare_id"],
-        # Don't remove old logs if they are to be used for the scan reports
-    ).delete(synchronize_session=False)
-    return send_submit_query(session)
+    connection, cursor = create_connection()
+    
+    try:
+        cursor.execute("BEGIN")
+        cursor.execute(
+            """
+            DELETE FROM scan_events
+                WHERE target = ?
+                  AND module_name = ?
+                  AND scan_unique_id != ?
+                  AND scan_unique_id != ?
+            """,
+            (
+                options["target"],
+                options["module_name"],
+                options["scan_id"],
+                options["scan_compare_id"],
+                ),
+            )
+        return send_submit_query(cursor)
+    except Exception as e:
+        cursor.execute("ROLLBACK")
+        print(f"Error in remove_old_logs: {e}")
+        return False
+    finally:
+        cursor.close()
 
 
 def submit_logs_to_db(log):
@@ -134,19 +157,31 @@ def submit_logs_to_db(log):
         True if success otherwise False
     """
     if isinstance(log, dict):
-        session = create_connection()
-        session.add(
-            HostsLog(
-                target=log["target"],
-                date=log["date"],
-                module_name=log["module_name"],
-                scan_unique_id=log["scan_id"],
-                port=json.dumps(log["port"]),
-                event=json.dumps(log["event"]),
-                json_event=json.dumps(log["json_event"]),
+        connection, cursor = create_connection()
+        try:
+            cursor.execute("BEGIN")
+            cursor.execute(
+                """
+                INSERT INTO scan_events (target, date, module_name, scan_unique_id, port, event, json_event)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    log["target"],
+                    str(log["date"]),
+                    log["module_name"],
+                    log["scan_id"],
+                    json.dumps(log["port"]),
+                    json.dumps(log["event"]),
+                    json.dumps(log["json_event"]),
+                ),
             )
-        )
-        return send_submit_query(session)
+            return send_submit_query(cursor)
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            print(f"There is an issue in submit_logs_to_db: {e}")
+            return False
+        finally:
+            cursor.close()
     else:
         log.warn(messages("invalid_json_type_to_db").format(log))
         return False
@@ -163,20 +198,33 @@ def submit_temp_logs_to_db(log):
         True if success otherwise False
     """
     if isinstance(log, dict):
-        session = create_connection()
-        session.add(
-            TempEvents(
-                target=log["target"],
-                date=log["date"],
-                module_name=log["module_name"],
-                scan_unique_id=log["scan_id"],
-                event_name=log["event_name"],
-                port=json.dumps(log["port"]),
-                event=json.dumps(log["event"]),
-                data=json.dumps(log["data"]),
-            )
-        )
-        return send_submit_query(session)
+        connection, cursor = create_connection()
+        
+        try:
+            cursor.execute("BEGIN")
+            cursor.execute(
+                """
+                INSERT INTO temp_events (target, date, module_name, scan_unique_id, event_name, port, event, data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    log["target"],
+                    str(log["date"]),
+                    log["module_name"],
+                    log["scan_id"],
+                    log["event_name"],
+                    json.dumps(log["port"]),
+                    json.dumps(log["event"]),
+                    json.dumps(log["data"]),
+                    ),
+                )
+            return send_submit_query(cursor)
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            print(f"Something is wrong in submit_temp_logs_to_db: {e}")
+            return False
+        finally:
+            cursor.close()
     else:
         log.warn(messages("invalid_json_type_to_db").format(log))
         return False
@@ -193,28 +241,31 @@ def find_temp_events(target, module_name, scan_id, event_name):
         event_name: event_name
 
     Returns:
-        an array with JSON events or an empty array
+        a JSON event row or None
     """
-    session = create_connection()
+    connection, cursor = create_connection()
     try:
-        for _ in range(1, 100):
+        for _ in range(100):
             try:
-                return (
-                    session.query(TempEvents)
-                    .filter(
-                        TempEvents.target == target,
-                        TempEvents.module_name == module_name,
-                        TempEvents.scan_unique_id == scan_id,
-                        TempEvents.event_name == event_name,
-                    )
-                    .first()
-                )
-            except Exception:
+                cursor.execute("""
+                    SELECT json_event
+                    FROM temp_events
+                    WHERE target = ? AND module_name = ? AND scan_unique_id = ? AND event_name = ?
+                    LIMIT 1
+                """, (target, module_name, scan_id, event_name))
+                
+                row = cursor.fetchone()
+                cursor.close()
+                if row:
+                    # Assuming json_event column stores JSON text
+                    return json.loads(row[0])
+                return None
+            except Exception as e:
                 time.sleep(0.1)
     except Exception:
         log.warn(messages("database_connect_fail"))
-        return False
-    return False
+        return None
+    return None
 
 
 def find_events(target, module_name, scan_id):
@@ -229,17 +280,27 @@ def find_events(target, module_name, scan_id):
     Returns:
         an array with JSON events or an empty array
     """
-    session = create_connection()
-    return (
-        session.query(HostsLog)
-        .filter(
-            HostsLog.target == target,
-            HostsLog.module_name == module_name,
-            HostsLog.scan_unique_id == scan_id,
-        )
-        .all()
-    )
+    connection, cursor = create_connection()
 
+    try:
+        cursor.execute(
+            """
+            SELECT json_event FROM scan_events
+            WHERE target = ? AND module_name = ? and scan_unique_id = ?
+            """,
+            (
+            target, module_name, scan_id
+            ),
+        )
+
+        rows = cursor.fetchall()
+        cursor.close()
+        if rows:
+            return [json.dumps((json.loads(row[0]))) for row in rows]
+        return []
+    except Exception as e:
+        print(f"Something went wrong in find_events: {e}")
+        return []
 
 def select_reports(page):
     """
@@ -254,23 +315,37 @@ def select_reports(page):
         list of events in array and JSON type, otherwise an error in JSON type.
     """
     selected = []
-    session = create_connection()
+    connection, cursor = create_connection()
+    offset = (page-1) * 10
+
     try:
-        search_data = (
-            session.query(Report).order_by(Report.id.desc()).offset((page * 10) - 10).limit(10)
+        cursor.execute(
+            """
+            SELECT id, date, scan_unique_id, report_path_filename, options
+            FROM reports
+            ORDER BY id DESC
+            LIMIT 10 OFFSET ?
+            """,
+            (offset,),
         )
-        for data in search_data:
+
+        rows = cursor.fetchall()
+
+        cursor.close()
+        for row in rows:
             tmp = {
-                "id": data.id,
-                "date": data.date,
-                "scan_id": data.scan_unique_id,
-                "report_path_filename": data.report_path_filename,
-                "options": json.loads(data.options),
+                "id": row[0],
+                "date": str(row[1]),
+                "scan_id": row[2],
+                "report_path_filename": row[3],
+                "options": json.loads(row[4]),
             }
             selected.append(tmp)
-    except Exception:
+        return selected
+
+    except Exception as e:
+        print(f"Database error in select_reports: {e}")
         return structure(status="error", msg="database error!")
-    return selected
 
 
 def get_scan_result(id):
@@ -283,10 +358,21 @@ def get_scan_result(id):
     Returns:
         result file content (TEXT, HTML, JSON) if success otherwise and error in JSON type.
     """
-    session = create_connection()
-    filename = session.query(Report).filter_by(id=id).first().report_path_filename
+    connection, cursor = create_connection()
+    cursor.execute(
+        """
+        SELECT report_path_filename from reports
+        WHERE id = ?
+        """, (id),
+        )
 
-    return filename, open(str(filename), "rb").read()
+    row = cursor.fetchone()
+    cursor.close()
+    if row:
+        filename = row[0]
+        return filename, open(str(filename), "rb").read()
+    else:
+        return structure(status="error", msg="database error!")
 
 
 def last_host_logs(page):
@@ -300,43 +386,76 @@ def last_host_logs(page):
     Returns:
         an array of events in JSON type if success otherwise an error in JSON type
     """
-    session = create_connection()
-    hosts = [
-        {
-            "target": host.target,
-            "info": {
-                "module_name": [
-                    _.module_name
-                    for _ in session.query(HostsLog)
-                    .filter(HostsLog.target == host.target)
-                    .group_by(HostsLog.module_name)
-                    .all()
-                ],
-                "date": session.query(HostsLog)
-                .filter(HostsLog.target == host.target)
-                .order_by(HostsLog.id.desc())
-                .first()
-                .date,
-                # "options": [  # unnecessary data?
-                #     _.options for _ in session.query(HostsLog).filter(
-                #         HostsLog.target == host.target
-                #     ).all()
-                # ],
-                "events": [
-                    _.event
-                    for _ in session.query(HostsLog).filter(HostsLog.target == host.target).all()
-                ],
-            },
-        }
-        for host in session.query(HostsLog)
-        .group_by(HostsLog.target)
-        .order_by(HostsLog.id.desc())
-        .offset((page * 10) - 10)
-        .limit(10)
-    ]
-    if len(hosts) == 0:
-        return structure(status="finished", msg="No more search results")
-    return hosts
+    connection, cursor = create_connection()
+    
+    try:
+        cursor.execute(
+            """
+            SELECT DISTINCT target 
+            FROM scan_events
+            ORDER BY id DESC 
+            LIMIT 10 OFFSET ?
+            """, 
+            [(page - 1) * 10]
+        )
+        targets = cursor.fetchall()
+        
+        if not targets:
+            return structure(status="finished", msg="No more search results")
+        
+        hosts = []
+        
+        for (target,) in targets:
+            cursor.execute(
+                """
+                SELECT DISTINCT module_name 
+                FROM scan_events
+                WHERE target = ?
+                """,
+                [target]
+            )
+            module_names = [row[0] for row in cursor.fetchall()]
+            
+            cursor.execute(
+                """
+                SELECT date 
+                FROM scan_events
+                WHERE target = ? 
+                ORDER BY id DESC 
+                LIMIT 1
+                """,
+                [target]
+            )
+            latest_date = cursor.fetchone()
+            latest_date = latest_date[0] if latest_date else None
+            
+            cursor.execute(
+                """
+                SELECT event 
+                FROM scan_events
+                WHERE target = ?
+                """,
+                [target]
+            )
+            events = [row[0] for row in cursor.fetchall()]
+            
+            cursor.close()
+            hosts.append(
+                {
+                    "target": target,
+                    "info": {
+                        "module_name": module_names,
+                        "date": latest_date,
+                        "events": events,
+                    },
+                }
+            )
+
+        return hosts
+
+    except Exception as e:
+        log.warn(f"Database query failed: {e}")
+        return structure(status="error", msg="Database error!")
 
 
 def get_logs_by_scan_id(scan_id):
@@ -349,18 +468,29 @@ def get_logs_by_scan_id(scan_id):
     Returns:
         an array with JSON events or an empty array
     """
-    session = create_connection()
+    connection, cursor = create_connection()
+    
+    cursor.execute(
+        """
+        SELECT scan_unique_id, target, module_name, date, port, event, json_event
+        from scan_events
+        WHERE scan_unique_id = ?
+        """, (scan_id,)                 # We have to put this as a indexed element
+        )
+    rows = cursor.fetchall()
+
+    cursor.close()
     return [
         {
-            "scan_id": scan_id,
-            "target": log.target,
-            "module_name": log.module_name,
-            "date": str(log.date),
-            "port": json.loads(log.port),
-            "event": json.loads(log.event),
-            "json_event": log.json_event,
+            "scan_id": row[0],
+            "target": row[1],
+            "module_name": row[2],
+            "date": str(row[3]),
+            "port": json.loads(row[4]),
+            "event": json.loads(row[5]),
+            "json_event": json.loads(row[6]) if row[6] else {}
         }
-        for log in session.query(HostsLog).filter(HostsLog.scan_unique_id == scan_id).all()
+        for row in rows
     ]
 
 
@@ -372,11 +502,19 @@ def get_options_by_scan_id(scan_id):
     Returns:
         an array with a dict with stored options or an empty array
     """
-    session = create_connection()
-    return [
-        {"options": log.options}
-        for log in session.query(Report).filter(Report.scan_unique_id == scan_id).all()
-    ]
+    connection, cursor = create_connection()
+    
+    cursor.execute(
+        """
+        SELECT options from reports
+        WHERE scan_unique_id = ?
+        """,
+        (scan_id,)
+        )
+    rows = cursor.fetchall()
+    cursor.close()
+    if rows:
+        return [{"options": row[0]} for row in rows]
 
 
 def logs_to_report_json(target):
@@ -390,19 +528,30 @@ def logs_to_report_json(target):
         an array with JSON events or an empty array
     """
     try:
-        session = create_connection()
+        connection, cursor = create_connection()
         return_logs = []
-        logs = session.query(HostsLog).filter(HostsLog.target == target)
-        for log in logs:
-            data = {
-                "scan_id": log.scan_unique_id,
-                "target": log.target,
-                "port": json.loads(log.port),
-                "event": json.loads(log.event),
-                "json_event": json.loads(log.json_event),
-            }
+
+        cursor.execute(
+            """
+            SELECT scan_unique_id, target, port, event, json_event
+            FROM scan_events WHERE target = ?
+            """,
+            (target,)
+            )
+        rows = cursor.fetchall()
+        cursor.close()
+        if rows:
+            for log in rows:
+                data = {
+                "scan_id": log[0],
+                "target": log[1],
+                "port": json.loads(log[2]),
+                "event": json.loads(log[3]),
+                "json_event": json.loads(log[4]),
+                }
             return_logs.append(data)
-        return return_logs
+
+            return return_logs
     except Exception:
         return []
 
@@ -420,19 +569,33 @@ def logs_to_report_html(target):
     from nettacker.core.graph import build_graph
     from nettacker.lib.html_log import log_data
 
-    session = create_connection()
+    connection, cursor = create_connection()
+    cursor.execute(
+        """
+        SELECT date, target, module_name, scan_unique_id, port, event, json_event
+        FROM scan_events
+        WHERE target = ?
+        """,
+        (target,)
+    )
+
+    rows = cursor.fetchall()
+    cursor.close()
     logs = [
-        {
-            "date": log.date,
-            "target": log.target,
-            "module_name": log.module_name,
-            "scan_id": log.scan_unique_id,
-            "port": log.port,
-            "event": log.event,
-            "json_event": log.json_event,
-        }
-        for log in session.query(HostsLog).filter(HostsLog.target == target).all()
+        str({
+            "date": log[0],
+            "target": log[1],
+            "module_name": log[2],
+            "scan_id": log[3],
+            "port": log[4],
+            "event": log[5],
+            "json_event": log[6],
+        })
+
+        for log in rows
     ]
+
+
     html_graph = build_graph("d3_tree_v2_graph", logs)
 
     html_content = log_data.table_title.format(
@@ -472,74 +635,74 @@ def search_logs(page, query):
         query: query to search
 
     Returns:
-        an array with JSON structure of founded events or an empty array
+        an array with JSON structure of found events or an empty array
     """
-    session = create_connection()
+    connection, cursor = create_connection()
     selected = []
     try:
-        for host in (
-            session.query(HostsLog)
-            .filter(
-                (HostsLog.target.like("%" + str(query) + "%"))
-                | (HostsLog.date.like("%" + str(query) + "%"))
-                | (HostsLog.module_name.like("%" + str(query) + "%"))
-                | (HostsLog.port.like("%" + str(query) + "%"))
-                | (HostsLog.event.like("%" + str(query) + "%"))
-                | (HostsLog.scan_unique_id.like("%" + str(query) + "%"))
+        # Fetch targets matching the query
+        cursor.execute(
+            """
+            SELECT DISTINCT target FROM scan_events
+            WHERE target LIKE ? OR date LIKE ? OR module_name LIKE ?
+            OR port LIKE ? OR event LIKE ? OR scan_unique_id LIKE ?
+            ORDER BY id DESC
+            LIMIT 10 OFFSET ?
+            """,
+            (
+                f"%{query}%", f"%{query}%", f"%{query}%",
+                f"%{query}%", f"%{query}%", f"%{query}%",
+                (page * 10) - 10,
             )
-            .group_by(HostsLog.target)
-            .order_by(HostsLog.id.desc())
-            .offset((page * 10) - 10)
-            .limit(10)
-        ):
-            for data in (
-                session.query(HostsLog)
-                .filter(HostsLog.target == str(host.target))
-                .group_by(
-                    HostsLog.module_name,
-                    HostsLog.port,
-                    HostsLog.scan_unique_id,
-                    HostsLog.event,
-                )
-                .order_by(HostsLog.id.desc())
-                .all()
-            ):
-                n = 0
-                capture = None
-                for selected_data in selected:
-                    if selected_data["target"] == host.target:
-                        capture = n
-                    n += 1
-                if capture is None:
-                    tmp = {
-                        "target": data.target,
-                        "info": {
-                            "module_name": [],
-                            "port": [],
-                            "date": [],
-                            "event": [],
-                            "json_event": [],
-                        },
-                    }
-                    selected.append(tmp)
-                    n = 0
-                    for selected_data in selected:
-                        if selected_data["target"] == host.target:
-                            capture = n
-                        n += 1
-                if data.target == selected[capture]["target"]:
-                    if data.module_name not in selected[capture]["info"]["module_name"]:
-                        selected[capture]["info"]["module_name"].append(data.module_name)
-                    if data.date not in selected[capture]["info"]["date"]:
-                        selected[capture]["info"]["date"].append(data.date)
-                    if data.port not in selected[capture]["info"]["port"]:
-                        selected[capture]["info"]["port"].append(json.loads(data.port))
-                    if data.event not in selected[capture]["info"]["event"]:
-                        selected[capture]["info"]["event"].append(json.loads(data.event))
-                    if data.json_event not in selected[capture]["info"]["json_event"]:
-                        selected[capture]["info"]["json_event"].append(json.loads(data.json_event))
-    except Exception:
-        return structure(status="error", msg="database error!")
+        )
+        targets = cursor.fetchall()
+        cursor.close()
+        for target_row in targets:
+            target = target_row[0]
+            # Fetch data for each target grouped by key fields
+            cursor.execute(
+                """
+                SELECT date, module_name, port, event, json_event FROM scan_events
+                WHERE target = ?
+                GROUP BY module_name, port, scan_unique_id, event
+                ORDER BY id DESC
+                """,
+                (target,)
+            )
+            results = cursor.fetchall()
+
+            tmp = {
+                "target": target,
+                "info": {
+                    "module_name": [],
+                    "port": [],
+                    "date": [],
+                    "event": [],
+                    "json_event": [],
+                },
+            }
+
+            for data in results:
+                date, module_name, port, event, json_event = data
+                if module_name not in tmp["info"]["module_name"]:
+                    tmp["info"]["module_name"].append(module_name)
+                if date not in tmp["info"]["date"]:
+                    tmp["info"]["date"].append(date)
+                parsed_port = json.loads(port)
+                if parsed_port not in tmp["info"]["port"]:
+                    tmp["info"]["port"].append(parsed_port)
+                parsed_event = json.loads(event)
+                if parsed_event not in tmp["info"]["event"]:
+                    tmp["info"]["event"].append(parsed_event)
+                parsed_json_event = json.loads(json_event)
+                if parsed_json_event not in tmp["info"]["json_event"]:
+                    tmp["info"]["json_event"].append(parsed_json_event)
+
+            selected.append(tmp)
+
+    except Exception as e:
+        return structure(status="error", msg=f"database error! {e}")
+
     if len(selected) == 0:
         return structure(status="finished", msg="No more search results")
     return selected
