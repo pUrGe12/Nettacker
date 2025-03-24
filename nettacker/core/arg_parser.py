@@ -665,6 +665,7 @@ class ArgParser(ArgumentParser):
             options.usernames = list(set(options.usernames.split(",")))
         elif options.usernames_list:
             try:
+                print(f"this is the username name: {options.usernames_list}")
                 options.usernames = list(set(open(options.usernames_list).read().split("\n")))
             except Exception:
                 die_failure(_("error_username").format(options.usernames_list))

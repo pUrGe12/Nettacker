@@ -7,6 +7,7 @@ import string
 import time
 from threading import Thread
 from types import SimpleNamespace
+from pathlib import Path
 
 from flask import Flask, jsonify
 from flask import request as flask_request
@@ -231,6 +232,14 @@ def new_scan():
     api_key_is_valid(app, flask_request)
     form_values = dict(flask_request.form)
     raw_report_path_filename = form_values.get("report_path_filename")
+    if form_values.get("usernames") and Path(form_values.get("usernames")).is_file():
+        raw_username_filename = form_values.get("usernames")
+        form_values["usernames_list"] = str(raw_username_filename)
+        del form_values["usernames"]
+    if form_values.get("passwords") and Path(form_values.get("passwords")).is_file():
+        raw_password_filename = form_values.get("passwords")
+        form_values["passwords_list"] = str(raw_password_filename)
+        del form_values["passwords"]
     report_path_filename = sanitize_report_path_filename(raw_report_path_filename)
     if not report_path_filename:
         return jsonify(structure(status="error", msg="Invalid report filename")), 400
@@ -245,6 +254,7 @@ def new_scan():
     thread.start()
 
     return jsonify(vars(nettacker_app.arguments)), 200
+
 
 
 @app.route("/compare/scans", methods=["POST"])
@@ -552,7 +562,7 @@ def start_api_subprocess(options):
             app.run(
                 host=options.api_hostname,
                 port=options.api_port,
-                debug=options.api_debug_mode,
+                debug=True,
                 ssl_context=(options.api_cert, options.api_cert_key),
                 threaded=True,
             )
