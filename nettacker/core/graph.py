@@ -70,6 +70,16 @@ def build_compare_report(compare_results):
     return build_report(compare_results)
 
 
+def return_sarif_output(all_scan_logs):
+    """
+    Converts all_scan_logs to a SARIF valid format
+    :param all_scan_logs: All the scan logs
+    :return:
+        json dump in valid SARIF format
+    """
+    return all_scan_logs
+
+
 def build_text_table(events):
     """
     value['date'], value["target"], value['module_name'], value['scan_id'],
@@ -185,6 +195,10 @@ def create_report(options, scan_id):
     elif len(report_path_filename) >= 5 and report_path_filename[-5:] == ".json":
         with open(report_path_filename, "w", encoding="utf-8") as report_file:
             report_file.write(str(json.dumps(all_scan_logs)) + "\n")
+            report_file.close()
+    elif len(report_path_filename) >= 5 and report_path_filename[-6:] == ".sarif":
+        with open(report_path_filename, "w", encoding="utf-8") as report_file:
+            report_file.write(return_sarif_output(all_scan_logs) + "\n")
             report_file.close()
     elif len(report_path_filename) >= 5 and report_path_filename[-4:] == ".csv":
         keys = all_scan_logs[0].keys()
