@@ -127,10 +127,8 @@ def create_sarif_report(all_scan_logs):
     The following conversions are made:
 
     ruleId: name of the module
-    level: optional field
     message: event value for each log in all_scan_logs
     locations.physicalLocations.artifactLocation.uri: target value 
-    region.startLine: optional field (I have added this in the above image, but I won’t be using this. Added only for demonstration)
     webRequest.properties.json_event: json_event value for each log in all_scan_logs
     properties.scan_id: scan_id unique value for each run
     properties.date: date field specified in all_scan_logs
