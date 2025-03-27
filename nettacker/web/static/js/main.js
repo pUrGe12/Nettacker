@@ -270,6 +270,12 @@ $(document).ready(function () {
           position: "right",
         },
         {
+          element: document.querySelectorAll("#dir_enum_file")[0],
+          intro:
+            "Enter your custom directory enum wordlist file or leave it to the default value.",
+          position: "right",
+        },
+        {
           element: document.querySelectorAll("#advance")[0],
           intro: "Click here to see some of the more advanced options.",
           position: "right",
@@ -391,6 +397,7 @@ $(document).ready(function () {
       socks_proxy: $("#socks_proxy").val(),
       usernames: $("#usernames").val(),
       passwords: $("#passwords").val(),
+      custom_dir_enum_file: $("#dir_enum_file").val(),
     };
 
     // replace "" with null

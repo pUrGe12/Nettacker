@@ -248,10 +248,17 @@ def new_scan():
     api_key_is_valid(app, flask_request)
     form_values = dict(flask_request.form)
     raw_report_path_filename = form_values.get("report_path_filename")
+
+    # Sanitizing this doesn't make sense because this will not
+    # always start from nettacker's root directory.
+    dir_enum_path = form_values.get("custom_dir_enum_file")
     report_path_filename = sanitize_report_path_filename(raw_report_path_filename)
     if not report_path_filename:
         return jsonify(structure(status="error", msg="Invalid report filename")), 400
+    if not dir_enum_path:
+        return jsonify(structure(status="error", msg="Invalid DirEnum filename")), 400
     form_values["report_path_filename"] = str(report_path_filename)
+    form_values["read_from_file"] = str(dir_enum_path)
     for key in nettacker_application_config:
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
@@ -577,7 +584,7 @@ def start_api_subprocess(options):
             app.run(
                 host=options.api_hostname,
                 port=options.api_port,
-                debug=options.api_debug_mode,
+                debug=True,
                 ssl_context="adhoc",
                 threaded=True,
             )
