@@ -119,6 +119,70 @@ def create_compare_text_table(results):
     return table.draw() + "\n\n"
 
 
+def create_sarif_report(all_scan_logs):
+    """
+    Takes all_scan_logs and converts them to a SARIF based json
+    format. The schema and version used are 2.1.0 linked below.
+
+    The following conversions are made:
+
+    ruleId: name of the module
+    level: optional field
+    message: event value for each log in all_scan_logs
+    locations.physicalLocations.artifactLocation.uri: target value 
+    region.startLine: optional field (I have added this in the above image, but I won’t be using this. Added only for demonstration)
+    webRequest.properties.json_event: json_event value for each log in all_scan_logs
+    properties.scan_id: scan_id unique value for each run
+    properties.date: date field specified in all_scan_logs
+    """
+
+    sarif_structure = {
+    "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+    "version": "2.1.0",
+    "runs": [
+        {
+            "tool": {
+                "driver": {
+                    "name": "Nettacker",
+                    "version": "0.4.0",
+                    "informationUri": "https://github.com/OWASP/Nettacker"
+                }
+            },
+            "results": []
+        }
+            ]
+                        }
+
+    for log in scan_logs:
+        sarif_result = {
+            "ruleId": log["module_name"],
+            "message": {
+                "text": log["event"]
+            },
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": log["target"]
+                        }
+                    }
+                }
+            ],
+            "webRequest": {
+                "properties": {
+                    "json_event": log["json_event"]
+                }
+            },
+            "properties": {
+                "scan_id": log["scan_id"],
+                "date": log["date"]
+            }
+        }
+        sarif_structure["runs"][0]["results"].append(sarif_result)
+    
+    return str(json.dumps(sarif_structure, indent=2))
+
+
 def create_report(options, scan_id):
     """
     sort all events, create log file in HTML/TEXT/JSON and remove old logs
@@ -186,6 +250,11 @@ def create_report(options, scan_id):
         with open(report_path_filename, "w", encoding="utf-8") as report_file:
             report_file.write(str(json.dumps(all_scan_logs)) + "\n")
             report_file.close()
+    elif len(report_path_filename) >= 6 and report_path_filename[-6:] == ".sarif":
+        with open(report_path_filename, "w", encoding="utf-8") as report_file:
+            sarif_content = create_sarif_report(all_scan_logs)
+            report_file.write(sarif_content + "\n")
+            report_file.close()                 # We don't have to explicitly close...
     elif len(report_path_filename) >= 5 and report_path_filename[-4:] == ".csv":
         keys = all_scan_logs[0].keys()
         with open(report_path_filename, "a") as csvfile:
