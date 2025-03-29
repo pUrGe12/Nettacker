@@ -252,7 +252,7 @@ def new_scan():
     form_values = dict(flask_request.form)
     print("This is what we're recievening: {}".format(form_values))         # Trying to see if we've getting malformed data from web itself
     
-    # form_values["targets"] = form_values["targets"]
+    form_values["targets"] = [form_values["targets"]]
     form_values["thread_per_host"] = int(form_values["thread_per_host"])
     form_values["retries"] = int(form_values["retries"])
     form_values["timeout"] = int(form_values["timeout"])

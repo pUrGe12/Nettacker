@@ -46,8 +46,11 @@ def new_scan_task(form_values):
 
 	print("These are the arguments to nettacker: {}".format(app_arguments))			# Is it splitting en.wikipedia.org
 	# Bruh till here everything's fine!
+<<<<<<< HEAD
 	if not isinstance(app_arguments.selected_modules, list):
 		app_arguments.selected_modules = [app_arguments.selected_modules]			# make sure we don't come here if we have actually selected more.
+=======
+>>>>>>> d7a8d2fc (initial implementation)
 	nettacker_app.arguments = app_arguments
 	nettacker_app.run()
 
