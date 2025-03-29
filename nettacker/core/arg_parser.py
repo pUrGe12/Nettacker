@@ -582,7 +582,8 @@ class ArgParser(ArgumentParser):
             # write("\n")
             die_failure(_("error_target"))
         if options.targets:
-            options.targets = list(set(options.targets.split(",")))
+            options.targets = options.targets           # Cause I am directly pushing a list for now
+            # options.targets = list(set(options.targets.split(",")))
         if options.targets_list:
             try:
                 options.targets = list(
