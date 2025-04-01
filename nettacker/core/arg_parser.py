@@ -415,6 +415,14 @@ class ArgParser(ArgumentParser):
             dest="read_from_file",
             help=_("user_wordlist"),
         )
+        method_options.add_argument(
+            "-sV",
+            "--version-scan",
+            action="store_true",
+            default=Config.settings.version_scan,
+            dest="version_scan",
+            help=_("version_scan"),
+        )
 
         # API Options
         api_options = self.add_argument_group(_("API"), _("API_options"))

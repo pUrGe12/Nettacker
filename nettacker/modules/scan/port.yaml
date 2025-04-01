@@ -16,6 +16,7 @@ payloads:
   - library: socket
     steps:
       - method: tcp_connect_send_and_receive
+        method_version: tcp_version_scan
         timeout: 3
         host: "{target}"
         ports:

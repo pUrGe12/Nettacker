@@ -12,6 +12,7 @@ import time
 
 from nettacker.core.lib.base import BaseEngine, BaseLibrary
 from nettacker.core.utils.common import reverse_and_regex_condition, replace_dependent_response
+from nettacker.config import Config
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,8 @@ class SocketLibrary(BaseLibrary):
             "ssl_flag": ssl_flag,
         }
 
+# This is the response: {'peer_name': ('127.0.0.1', 5432), 'service': 'postgresql', 'response': '', 'ssl_flag': False}
+
     def tcp_connect_send_and_receive(self, host, port, timeout):
         tcp_socket = create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
@@ -78,6 +81,42 @@ class SocketLibrary(BaseLibrary):
             "response": response.decode(errors="ignore"),
             "ssl_flag": ssl_flag,
         }
+
+    def tcp_version_scan(self, peer_name, service, response, ssl_flag):
+
+        def null_probing(socket_connection):
+            try:
+                socket_connection.send(b"GET /HTTP/1.1\x00\r\n\r\n" * 10)
+                response = socket_connection.recv(1024 * 1024 * 10)
+                socket_connection.close()
+            except Exception as e:
+                print("exception hit: {}".format(e))
+                response = b""
+            return response.decode(errors="ignore")
+
+        import yaml
+        # Read the probes file and extract all probes, save it as a dictionary
+        # with keys are ports and values as a list of dictionaries of probes and
+        # its version match
+
+        host_name = peer_name[0]
+        port = int(peer_name[1])
+
+        # Keeing this seperate from others
+        timeout = Config.settings.version_scan_timeout
+        tcp_socket = create_tcp_socket(host_name, port, timeout)
+        if tcp_socket is None:
+            return None
+
+        socket_connection, ssl_flag = tcp_socket
+
+        null_probing_response = null_probing(socket_connection)
+        print("This is the null_probing_response: {}".format(null_probing_response))
+        # First try and see if the current response will match any regex for
+        # the detected port
+        # Then try null probing and response matching
+        # Then try each probe under that port and matching the regex.
+        # Return the matched port
 
     def socket_icmp(self, host, timeout):
         """
