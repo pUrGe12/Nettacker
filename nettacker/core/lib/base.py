@@ -270,7 +270,7 @@ class BaseEngine(ABC):
         backup_response = copy.deepcopy(sub_step["response"])
         del sub_step["method"]
         del sub_step["response"]
-        
+
         backup_method_version = copy.deepcopy(sub_step["method_version"])
         del sub_step["method_version"]
 
@@ -294,7 +294,11 @@ class BaseEngine(ABC):
         for _i in range(options["retries"]):
             try:
                 response = action(**sub_step)
-                if (version_scan) and ("port_scan" in options.get("selected_modules")) and (response is not None):
+                if (
+                    (version_scan)
+                    and ("port_scan" in options.get("selected_modules"))
+                    and (response is not None)
+                ):
                     version_action = getattr(self.library(), backup_method_version)
                     version_response = version_action(**response)
                 break
@@ -303,7 +307,7 @@ class BaseEngine(ABC):
 
         sub_step["method"] = backup_method
         sub_step["response"] = backup_response
-        sub_step["method_version"] = backup_method_version # Need to add this!
+        sub_step["method_version"] = backup_method_version  # Need to add this!
         sub_step["response"]["conditions_results"] = response
 
         self.apply_extra_data(sub_step, response)
