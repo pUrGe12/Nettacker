@@ -91,6 +91,7 @@ class PathConfig:
     data_dir = CWD / ".data"
     database_file = CWD / ".data/nettacker.db"
     graph_dir = PACKAGE_PATH / "lib/graph"
+    probes_file = PACKAGE_PATH / "lib/payloads/probes/probes.yaml"
     home_dir = CWD
     locale_dir = PACKAGE_PATH / "locale"
     logo_file = PACKAGE_PATH / "logo.txt"
