@@ -140,6 +140,7 @@ class DefaultSettings(ConfigBase):
     thread_per_host = 100
     time_sleep_between_requests = 0.0
     timeout = 3.0
+    version_scan_timeout = 3.0
     user_agent = "Nettacker {version_number} {version_code}".format(
         version_number=version_info()[0], version_code=version_info()[1]
     )
@@ -147,6 +148,7 @@ class DefaultSettings(ConfigBase):
     usernames_list = None
     verbose_event = False
     verbose_mode = False
+    version_scan = False
     scan_compare_id = None
     compare_report_path_filename = ""
 
