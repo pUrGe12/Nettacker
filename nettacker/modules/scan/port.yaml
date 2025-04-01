@@ -1026,6 +1026,7 @@ payloads:
           - 65389
         response:
           condition_type: or
+          log: "response_dependent['port_scan']"
           conditions:
             open_port:
               regex: \d{{1,5}}
@@ -1035,6 +1036,14 @@ payloads:
               regex: "220-You are user number|530 USER and PASS required|Invalid command: try being more creative|220 \\S+ FTP (Service|service|Server|server)|220 FTP Server ready|Directory status|Service closing control connection|Requested file action|Connection closed; transfer aborted|Directory not empty"
               reverse: false
             ftps: *ftp
+
+            elasticsearch:
+              regex: "X-elastic-product:\\s*Elasticsearch|\"reason\":\"text is empty \\(possibly HTTP/\\d+\\.\\d+\\)\""
+              reverse: false
+
+            ipp:
+              regex: "Server: CUPS/\\d+\\.\\d+ IPP/\\d+\\.\\d+\r?\n"
+              reverse: false
 
             http:
               regex: "HTTPStatus.BAD_REQUEST|HTTP\\/[\\d.]+\\s+[\\d]+|Server: |Content-Length: \\d+|Content-Type: |Access-Control-Request-Headers: |Forwarded: |Proxy-Authorization: |User-Agent: |X-Forwarded-Host: |Content-MD5: |Access-Control-Request-Method: |Accept-Language: "
@@ -1049,7 +1058,7 @@ payloads:
               reverse: false
 
             mysql:
-              regex: "is not allowed to connect to this MySQL server"
+              regex: "\\x08\\d+\\.\\d+\\.\\d+|caching_sha2_password\\x00|is not allowed to connect to this MySQL server"
               reverse: false
 
             nntp:

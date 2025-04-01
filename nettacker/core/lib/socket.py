@@ -40,6 +40,7 @@ def create_tcp_socket(host, port, timeout):
 
 class SocketLibrary(BaseLibrary):
     def tcp_connect_only(self, host, port, timeout):
+        print("connect only")
         tcp_socket = create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
             return None
@@ -61,17 +62,29 @@ class SocketLibrary(BaseLibrary):
         socket_connection, ssl_flag = tcp_socket
         peer_name = socket_connection.getpeername()
         try:
-            socket_connection.send(b"ABC\x00\r\n\r\n\r\n" * 10)
+            socket_connection.send(b"GET / HTTP/1.1\x00\r\n\r\n\r\n" * 10)
             response = socket_connection.recv(1024 * 1024 * 10)
             socket_connection.close()
         # except ConnectionRefusedError:
         #     return None
+        except ConnectionResetError:
+            try:
+                socket_connection.send(b"ABC\r\n\r\n\r\n" * 10)
+                response = socket_connection.recv(1024 * 1024 * 10)
+                socket_connection.close()
+            except Exception:
+                try:
+                    socket_connection.close()
+                    response = b""
+                except Exception:
+                    response = b""
         except Exception:
             try:
                 socket_connection.close()
                 response = b""
             except Exception:
                 response = b""
+
         return {
             "peer_name": peer_name,
             "service": socket.getservbyport(port),
@@ -251,6 +264,11 @@ class SocketEngine(BaseEngine):
                 if condition_type == "and":
                     return condition_results if len(condition_results) == len(conditions) else []
                 if condition_type == "or":
+                    if sub_step["response"].get("log", False):
+                        matched_service = list(condition_results.keys())[0]
+                        matched_response = condition_results.get(matched_service)
+                        if "response_dependent" in sub_step["response"]["log"]:
+                            condition_results["log"] = f"{matched_service} - {matched_response}"
                     return condition_results if condition_results else []
                 return []
         if sub_step["method"] == "socket_icmp":
