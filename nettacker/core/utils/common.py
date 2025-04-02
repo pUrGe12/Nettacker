@@ -13,6 +13,7 @@ import time
 from itertools import product
 
 from nettacker import logger
+from nettacker.config import Config
 
 log = logger.get_logger()
 
@@ -49,6 +50,84 @@ def reverse_and_regex_condition(regex, reverse):
         if reverse:
             return True
         return []
+
+
+def port_to_probes_and_matches(port_number):
+    """
+    This function parses the YAML file and queries it
+    for the port number given, and returns a specifically
+    formatted list of ports and matches.
+
+    input: port number (int)
+    output: {"probes": [probes], "matches": [{"match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}},
+    {"match_2": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}}]}
+    
+    Note: It removes the probe names and gives only a list of bytes that needs to
+    be sent via the tcp socket.
+
+    The additional fields are specified clearly in the documentation. In
+    case any field is not present for that particular regex, its value is "".
+
+    If the port is not present in the YAML file, it returns None
+    """
+    results = {"probes": [], "matches": []}
+
+    import yaml
+    with open(Config.path.probes_file) as stream:
+        data = yaml.safe_load(stream)
+
+    for entry in data.get("service_logger", []):
+    if int(entry["value"]) == port_number:
+        results["probes"] = entry.get("probe", [])
+        matches_list = entry.get("regex", [])
+        break
+
+    # parsing the matches_list
+
+    def create_match(match_name, service, regex, product_vendor_name, version, info, operating_system, device_type, cpe_name):
+        return {
+            match_name: {
+                "service": service,
+                "regex": regex,
+                "p": product_vendor_name,
+                "v": version,
+                "i": info,
+                "o": operating_system,
+                "d": device_type,
+                "cpe": cpe_name
+            }
+        }
+
+    def parse_match(match, index):
+        try:
+            match_name = f"match_{index}"
+            service, rest = match.split(" m|") if " m|" in match else match.split(" m/")
+            service = service.split(" ")[1]
+            regex, *fields = rest.split("|")
+            fields = "|".join(fields)
+            
+            def extract_field(fields, prefix):
+                return fields.split(prefix)[1].split("/")[0] if prefix in fields else ""
+            
+            return create_match(
+                match_name,
+                service,
+                regex,
+                extract_field(fields, " p/"),
+                extract_field(fields, " v/"),
+                extract_field(fields, " i/"),
+                extract_field(fields, " o/"),
+                extract_field(fields, " d/"),
+                extract_field(fields, " cpe:/")
+            )
+        except Exception:
+            pass  # it probably hit a none
+
+    final_result = [parse_match(match, i + 1) for i, match in enumerate(matches_list)]
+    results["matches"] = final_result
+
+    return results
+
 
 
 def wait_for_threads_to_finish(threads, maximum=None, terminable=False, sub_process=False):
