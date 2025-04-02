@@ -83,6 +83,16 @@ class SocketLibrary(BaseLibrary):
         }
 
     def tcp_version_scan(self, peer_name, service, response, ssl_flag):
+        """
+        This function does the following:
+        1. Tries to send a custom payload depending on the port detected and
+            its already parallelized due to the way its being called
+        2. If response is received and matched, it returns that
+        3. If no response is received or no response is matched, it sends
+            a null probe and tries to match that and return
+        4. If none matched, it returns an empty string
+        """
+
         def null_probing(socket_connection):
             try:
                 socket_connection.send(b"")
@@ -93,50 +103,57 @@ class SocketLibrary(BaseLibrary):
                 response = b""
             return response.decode(errors="ignore")
 
-        def custom_probes(host_name, port, timeout):
-            # Creating a new TCP socket to start implementing version scanning probes
+        def send_custom_probes(host_name, port, timeout):
+            """
+            The payloads are read through a YAML file which is specifically formatted
+            and this is done via the function port_to_probes_and_matches(port_number)
+            which returns a tuple formatted like this:
+            {"probes": [probes], "matches": ["match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}]}
+            
+            This function creates a tcp socket for the host and port. For each
+            probe in the probe list it sends the bytes, holds the service name and tries
+            all the matches with the response (if it receives a response). For any
+            matched regex, it finds the additional fields for that and tries to figure
+            out the version or any other relevant params.
+
+            If it finds nothing, it returns "".
+            """
+            probes_list, regex_value_dict_list = port_to_probes_and_matches(port)
             tcp_socket = create_tcp_socket(host_name, port, timeout)
             if tcp_socket is None:
                 return None
+
             socket_connection, ssl_flag = tcp_socket
-            # Based on port, parse the YAML file and obtain the probes and regexes
-            import yaml
 
-            with open(Config.path.probes_file, "r") as file:
-                data = yaml.safe_load(file)
-            # Obtaining the probes and regexes specific to the matched port
-
-            # Remember the YAML file is already structured.
-            # only use the YAML file if the Port is PRESENT as a key
-
-            for probe in probes_list:
-                # You can't direclty do this based on how the YAML file is structured.
-                try:
+            try:
+                for probe in probes_list:
                     socket_connection.send(bytes(probe, encoding="utf-8"))
                     response = socket_connection.recv(1024 * 1024 * 10)
+                    
+                    # Code to check regex matching
+                    
                     socket_connection.close()
                 except Exception as e:
                     print("exception hit: {}".format(e))
                     response = b""
-            return (response.decode(errors="ignore"), regex_list)
+
+                return
 
         host_name = peer_name[0]
         port = int(peer_name[1])
-
         # Keeing this seperate from others
         timeout = Config.settings.version_scan_timeout
-        tcp_socket = create_tcp_socket(host_name, port, timeout)
-        if tcp_socket is None:
-            return None
+        
+        # First try port specific probing
+        custom_probing_response = send_custom_probes(host_name, port, timeout)
 
-        socket_connection, ssl_flag = tcp_socket
-
-        custom_probes_response, port_regex_list = custom_probes(socket_connection)
-
-        if not custom_probes_response:
+        if not custom_probing_response:
+            tcp_socket = create_tcp_socket(host_name, port, timeout)
+            if tcp_socket is None:
+                return None
+            socket_connection, ssl_flag = tcp_socket
             null_probing_response = null_probing(socket_connection)
 
-        return (null_probing_response, custom_probes_response, port_regex_list)
 
     def socket_icmp(self, host, timeout):
         """
@@ -294,6 +311,8 @@ class SocketEngine(BaseEngine):
             # Here we will check if sub_step["method_version"] is also present. It should
             # only be here, if the flag is specified. or maybe some other way to verify
             # that the user wants version scanning to be implemented.
+
+            # We'll take the matched versions directly and append it to the results
             if response:
                 for condition in conditions:
                     regex = re.findall(
