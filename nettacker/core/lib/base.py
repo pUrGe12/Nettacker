@@ -300,7 +300,7 @@ class BaseEngine(ABC):
                     and (response is not None)
                 ):
                     version_action = getattr(self.library(), backup_method_version)
-                    version_response = version_action(**response)
+                    version_action(**response)
                 break
             except Exception:
                 response = []

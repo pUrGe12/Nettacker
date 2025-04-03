@@ -39,6 +39,63 @@ def create_tcp_socket(host, port, timeout):
     return socket_connection, ssl_flag
 
 
+def extract_probes(probes_list):
+    """
+    Each probe in the probe_list looks like this:
+    - "Probe TCP GenericLines q|\r\n\r\n|"
+    General structure:
+    - Keyword: Probe
+    - Protocol: TCP/UDP
+    - Probe name: Some cool name
+    - The bytes to be sent (q| onwards)
+    This function won't do any TCP/UDP detection. Going
+    under the assumption that all probes in a single list
+    will be under the same protocol (because same port)
+    
+    I am also neglecting the probe names, but later they
+    might be useful for memoisation.
+    """
+    return [bytes(probe.split("q|")[1][:-1], encoding="utf-8") if "q|" in probe
+    else bytes(probe.split("q/")[1][1:], encoding="utf-8") for probe in probes_list]
+
+
+def match_regex(response, regex_value_dict_list):
+    """
+    regex_value_dict_list is of the following format:
+        [
+        {"match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}},
+        {"match_2": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}}
+        ]
+    This function tries to match the response with each regex value. For the
+    matched ones, it returns all the other params.
+    
+    returns: [entire_match_dict] of that probe
+    or [] if nothing matched
+    """
+    i = 1
+    response = response.decode("utf-8", errors="ignore")        
+    # otherwise we run into the cannot use a string pattern on a bytes-like object
+    for match_dict in regex_value_dict_list:
+        if match_dict is not None:
+            match_name = f"match_{i}"
+            try:
+                list_of_matches = re.findall(
+                    re.compile(match_dict[match_name]["regex"]),
+                    response)
+                if list_of_matches:
+                    return match_dict
+                if i == len(regex_value_dict_list):
+                    break
+                i += 1
+            except Exception as e:
+                # Shouldn't come here at all, kept for safety
+                pass
+        else:
+            # Skip that match value
+            i += 2
+    return []
+
+
 class SocketLibrary(BaseLibrary):
     def tcp_connect_only(self, host, port, timeout):
         tcp_socket = create_tcp_socket(host, port, timeout)
@@ -54,7 +111,6 @@ class SocketLibrary(BaseLibrary):
             "ssl_flag": ssl_flag,
         }
 
-    # This is the response: {'peer_name': ('127.0.0.1', 5432), 'service': 'postgresql', 'response': '', 'ssl_flag': False}
 
     def tcp_connect_send_and_receive(self, host, port, timeout):
         tcp_socket = create_tcp_socket(host, port, timeout)
@@ -82,6 +138,7 @@ class SocketLibrary(BaseLibrary):
             "ssl_flag": ssl_flag,
         }
 
+
     def tcp_version_scan(self, peer_name, service, response, ssl_flag):
         """
         This function does the following:
@@ -92,14 +149,20 @@ class SocketLibrary(BaseLibrary):
             a null probe and tries to match that and return
         4. If none matched, it returns an empty string
         """
+        def null_probing(host_name, port, timeout):
+            """
+            This is a null prober. Simply waits for the service to
+            throw out its banner.
+            """
 
-        def null_probing(socket_connection):
+            tcp_socket = create_tcp_socket(host_name, port, timeout)
+            if tcp_socket is None:
+                return None
+            socket_connection, ssl_flag = tcp_socket
             try:
                 socket_connection.send(b"")
                 response = socket_connection.recv(1024 * 1024 * 10)
-                socket_connection.close()
             except Exception as e:
-                print("exception hit: {}".format(e))
                 response = b""
             return response.decode(errors="ignore")
 
@@ -108,7 +171,8 @@ class SocketLibrary(BaseLibrary):
             The payloads are read through a YAML file which is specifically formatted
             and this is done via the function port_to_probes_and_matches(port_number)
             which returns a tuple formatted like this:
-            {"probes": [probes], "matches": ["match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}]}
+            {"probes": [probes], "matches": [{"match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}},
+            {"match_2": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}}]}
             
             This function creates a tcp socket for the host and port. For each
             probe in the probe list it sends the bytes, holds the service name and tries
@@ -117,42 +181,51 @@ class SocketLibrary(BaseLibrary):
             out the version or any other relevant params.
 
             If it finds nothing, it returns "".
+
+            Its better to start a new connection than reusing old ones.
             """
-            probes_list, regex_value_dict_list = port_to_probes_and_matches(port)
+            matches = b""
+            results = port_to_probes_and_matches(port)
+            probes_list, regex_values_dict_list = results["probes"], results["matches"]
+            raw_probes = extract_probes(probes_list)
+
             tcp_socket = create_tcp_socket(host_name, port, timeout)
             if tcp_socket is None:
                 return None
-
             socket_connection, ssl_flag = tcp_socket
-
             try:
-                for probe in probes_list:
-                    socket_connection.send(bytes(probe, encoding="utf-8"))
-                    response = socket_connection.recv(1024 * 1024 * 10)
-                    
-                    # Code to check regex matching
-                    
-                    socket_connection.close()
-                except Exception as e:
-                    print("exception hit: {}".format(e))
-                    response = b""
+                for probe in raw_probes:
+                    try:
+                        socket_connection.send(probe)       # This is already b""
+                        response = socket_connection.recv(1024 * 1024 * 10)
+                        if response:
+                            matches = match_regex(response, regex_values_dict_list)
+                    except (BrokenPipeError, ConnectionResetError):
+                        # We'll have to reopen the socket now
+                        tcp_socket = create_tcp_socket(host_name, port, timeout)
+                        if tcp_socket is None:
+                            return None
+                        socket_connection.send(probe)
 
-                return
+                        response = socket_connection.recv(1024 * 1024 * 10)
+                        if response:
+                            matches = match_regex(response, regex_values_dict_list)
+            except Exception as e:
+                matches = b""
+
+            return matches
 
         host_name = peer_name[0]
         port = int(peer_name[1])
+
         # Keeing this seperate from others
         timeout = Config.settings.version_scan_timeout
-        
-        # First try port specific probing
-        custom_probing_response = send_custom_probes(host_name, port, timeout)
 
-        if not custom_probing_response:
-            tcp_socket = create_tcp_socket(host_name, port, timeout)
-            if tcp_socket is None:
-                return None
-            socket_connection, ssl_flag = tcp_socket
-            null_probing_response = null_probing(socket_connection)
+        custom_probes_resp =  send_custom_probes(host_name, port, timeout)
+        # print("This is the custom_probing_response: {}".format(custom_probes_resp))
+        if not custom_probes_resp:
+            null_probing_response = null_probing(host_name, port, timeout)
+            # print("This is the null_probing_response: {}".format(null_probing_response))
 
 
     def socket_icmp(self, host, timeout):
