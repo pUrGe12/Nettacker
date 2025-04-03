@@ -13,7 +13,7 @@ import time
 from itertools import product
 
 from nettacker import logger
-from nettacker.config import Config
+
 
 log = logger.get_logger()
 
@@ -73,14 +73,16 @@ def port_to_probes_and_matches(port_number):
     results = {"probes": [], "matches": []}
 
     import yaml
+    from nettacker.config import Config
+
     with open(Config.path.probes_file) as stream:
         data = yaml.safe_load(stream)
 
     for entry in data.get("service_logger", []):
-    if int(entry["value"]) == port_number:
-        results["probes"] = entry.get("probe", [])
-        matches_list = entry.get("regex", [])
-        break
+        if int(entry["value"]) == port_number:
+            results["probes"] = entry.get("probe", [])
+            matches_list = entry.get("regex", [])
+            break
 
     # parsing the matches_list
 
