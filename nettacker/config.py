@@ -93,6 +93,7 @@ class PathConfig:
     graph_dir = PACKAGE_PATH / "lib/graph"
     probes_file = PACKAGE_PATH / "lib/payloads/probes/version_probes.yaml"
     home_dir = CWD
+    huey_broker = CWD / ".broker/huey_broker.db"
     locale_dir = PACKAGE_PATH / "locale"
     logo_file = PACKAGE_PATH / "logo.txt"
     module_protocols_dir = PACKAGE_PATH / "core/lib"
