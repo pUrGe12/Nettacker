@@ -39,6 +39,20 @@ def create_tcp_socket(host, port, timeout):
     return socket_connection, ssl_flag
 
 
+def extract_UDP_probes(probes_list):
+    """
+    Checking if UDP is there after "Probe" header
+    and if it is, then appending the bytes to the
+    list and finally returning that.
+    """
+    print("extracting_UDP_probes")
+    return [
+        bytes(probe.split("q|" if "q|" in probe else "q/")[1][:-1], encoding="utf-8")
+        for probe in probes_list
+        if "UDP" in probe.split("q|" if "q|" in probe else "q/")[0].split(" ")
+    ]
+
+
 def extract_probes(probes_list):
     """
     Each probe in the probe_list looks like this:
@@ -112,7 +126,39 @@ class SocketLibrary(BaseLibrary):
         }
 
 
+    def udp_scan(self, host, port, timeout):
+        """
+        This function takes the hostname, port and timeout,
+        creates a socket and sends a UDP probe from a list
+        of UDP probes extracted from the YAML file via the
+        extract_udp_probes function.
+        
+        It checks multiple ports parallely and returns a
+        list of those running a UDP service
+        """
+        print("inside udp_scan")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_probes_list = extract_UDP_probes(port_to_probes_and_matches(port)["probes"])
+        print(udp_probes_list)
+        # The matches ae going to be empty lists anyway        
+        for probe in udp_probes_list:
+            try:
+                print("sending udp probe")
+                sock.sendto(probe, (target_host, target_port))
+                response, addr = sock.recvfrom(1024)
+                sock.close()
+            except Exception:
+                try:
+                    sock.close()
+                    response = b""
+                except Exception:
+                    response = b""
+            if response:
+                print(f"received some response: {response}")
+
+
     def tcp_connect_send_and_receive(self, host, port, timeout):
+        print("inside tcp_connect_send_and_receive")
         tcp_socket = create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
             return None

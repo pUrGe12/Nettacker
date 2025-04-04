@@ -423,6 +423,14 @@ class ArgParser(ArgumentParser):
             dest="version_scan",
             help=_("version_scan"),
         )
+        method_options.add_argument(
+            "-sU",
+            "--udp-scan",
+            action="store_true",
+            default=Config.settings.udp_scan,
+            dest="udp_scan",
+            help=_("udp_scan"),
+        )
 
         # API Options
         api_options = self.add_argument_group(_("API"), _("API_options"))

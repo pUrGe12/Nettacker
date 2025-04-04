@@ -275,8 +275,11 @@ class BaseEngine(ABC):
         del sub_step["method_version"]
 
         version_scan = False
+        udp_scan = False
         if options.get("version_scan"):
             version_scan = True
+        if options.get("udp_scan"):
+            udp_scan = True
 
         for attr_name in ("ports", "usernames", "passwords"):
             if attr_name in sub_step:
@@ -302,6 +305,16 @@ class BaseEngine(ABC):
                     version_action = getattr(self.library(), backup_method_version)
                     version_action(**response)
                 break
+            except Exception:
+                response = []
+
+
+        for _i in range(options["retries"]):
+            try:
+                if "port_scan" in options.get("selected_modules") and udp_scan:
+                    udp_port_scanner = getattr(self.library(), "udp_scan")
+                    udp_port_scanner(**sub_step)
+                    # This is directly printing
             except Exception:
                 response = []
 
