@@ -251,14 +251,16 @@ def new_scan():
 
     # Sanitizing this doesn't make sense because this will not
     # always start from nettacker's root directory.
-    dir_enum_path = form_values.get("custom_dir_enum_file")
+    enum_path = form_values.get("custom_enum_file")
     report_path_filename = sanitize_report_path_filename(raw_report_path_filename)
     if not report_path_filename:
         return jsonify(structure(status="error", msg="Invalid report filename")), 400
-    if not dir_enum_path:
-        return jsonify(structure(status="error", msg="Invalid DirEnum filename")), 400
+    # if not enum_path:
+    #     return jsonify(structure(status="error", msg="Invalid enum filename")), 400
+    # They have the choice to use the default values
     form_values["report_path_filename"] = str(report_path_filename)
-    form_values["read_from_file"] = str(dir_enum_path)
+    if enum_path:
+        form_values["read_from_file"] = str(enum_path)
     for key in nettacker_application_config:
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
