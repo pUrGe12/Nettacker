@@ -70,17 +70,13 @@ def port_to_probes_and_matches(port_number):
 
     If the port is not present in the YAML file, it returns None
     """
+
     print("inside port_to_probes_and_matches")
     results = {"probes": [], "matches": []}
 
-    import yaml
-    from nettacker.config import Config
-
-    print("opening yaml file")
-    with open(Config.path.probes_file) as stream:
-        data = yaml.safe_load(stream)
-
-    print("opened")
+    from nettacker.core.utils.tasks import load_yaml_task
+    data = load_yaml_task()
+    
     for entry in data.get("service_logger", []):
         if int(entry["value"]) == port_number:
             results["probes"] = entry.get("probe", [])
