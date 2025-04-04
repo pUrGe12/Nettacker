@@ -86,29 +86,35 @@ def match_regex(response, regex_value_dict_list):
     returns: [entire_match_dict] of that probe
     or [] if nothing matched
     """
-    i = 1
-    response = response.decode("utf-8", errors="ignore")        
-    # otherwise we run into the cannot use a string pattern on a bytes-like object
-    for match_dict in regex_value_dict_list:
-        if match_dict is not None:
-            match_name = f"match_{i}"
-            try:
-                list_of_matches = re.findall(
-                    re.compile(match_dict[match_name]["regex"]),
-                    response)
-                if list_of_matches:
-                    return match_dict
-                if i == len(regex_value_dict_list):
-                    break
-                i += 1
-            except Exception as e:
-                # Shouldn't come here at all, kept for safety
-                pass
-        else:
-            # Skip that match value
-            i += 2
-    return []
-
+    try:
+        print("inside match_regex")
+        i = 1
+        response = response.decode("utf-8", errors="ignore")
+        print("decoded response")   
+        # otherwise we run into the cannot use a string pattern on a bytes-like object
+        for match_dict in regex_value_dict_list:
+            print(f"this is the match dict: {match_dict} \n\n")
+            if match_dict is not None:
+                match_name = f"match_{i}"
+                try:
+                    list_of_matches = re.findall(
+                        re.compile(match_dict[match_name]["regex"]),
+                        response)
+                    if list_of_matches:
+                        return match_dict
+                    if i == len(regex_value_dict_list):
+                        break
+                    i += 1
+                except Exception as e:
+                    # Shouldn't come here at all, kept for safety
+                    pass
+            else:
+                # Skip that match value
+                i += 2
+        return []
+    except Exception as e:
+        print(f"This goes wrong inside match_regex: {e}")
+        return []
 
 class SocketLibrary(BaseLibrary):
     def tcp_connect_only(self, host, port, timeout):
@@ -158,7 +164,6 @@ class SocketLibrary(BaseLibrary):
 
 
     def tcp_connect_send_and_receive(self, host, port, timeout):
-        print("inside tcp_connect_send_and_receive")
         tcp_socket = create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
             return None
@@ -168,6 +173,7 @@ class SocketLibrary(BaseLibrary):
         try:
             socket_connection.send(b"ABC\x00\r\n\r\n\r\n" * 10)
             response = socket_connection.recv(1024 * 1024 * 10)
+            print(f"got response from tcp_connect_send_and_receive: {response}")
             socket_connection.close()
         # except ConnectionRefusedError:
         #     return None
@@ -185,7 +191,7 @@ class SocketLibrary(BaseLibrary):
         }
 
 
-    def tcp_version_scan(self, peer_name, service, response, ssl_flag):
+    def tcp_version_scan(self, peer_name, service, response, ssl_flag, data):
         """
         This function does the following:
         1. Tries to send a custom payload depending on the port detected and
@@ -195,12 +201,12 @@ class SocketLibrary(BaseLibrary):
             a null probe and tries to match that and return
         4. If none matched, it returns an empty string
         """
+        print("visited tcp_version_scan")
         def null_probing(host_name, port, timeout):
             """
             This is a null prober. Simply waits for the service to
             throw out its banner.
             """
-
             tcp_socket = create_tcp_socket(host_name, port, timeout)
             if tcp_socket is None:
                 return None
@@ -208,11 +214,12 @@ class SocketLibrary(BaseLibrary):
             try:
                 socket_connection.send(b"")
                 response = socket_connection.recv(1024 * 1024 * 10)
+                print(f"got response from null probing: {response}")
             except Exception as e:
                 response = b""
             return response.decode(errors="ignore")
 
-        def send_custom_probes(host_name, port, timeout):
+        def send_custom_probes(host_name, port, timeout, data):
             """
             The payloads are read through a YAML file which is specifically formatted
             and this is done via the function port_to_probes_and_matches(port_number)
@@ -230,9 +237,11 @@ class SocketLibrary(BaseLibrary):
 
             Its better to start a new connection than reusing old ones.
             """
+            print("inside custom probing")
             matches = b""
-            results = port_to_probes_and_matches(port)
+            results = port_to_probes_and_matches(port, data)
             probes_list, regex_values_dict_list = results["probes"], results["matches"]
+            print("This is the regex_values_dict_list: {}".format(regex_values_dict_list))
             raw_probes = extract_probes(probes_list)
 
             tcp_socket = create_tcp_socket(host_name, port, timeout)
@@ -242,23 +251,33 @@ class SocketLibrary(BaseLibrary):
             try:
                 for probe in raw_probes:
                     try:
-                        socket_connection.send(probe)       # This is already b""
+                        # probe is already converted to bytes
+                        socket_connection.send(probe)
                         response = socket_connection.recv(1024 * 1024 * 10)
                         if response:
+                            print(f"got resonse from custom probing: {response}")
                             matches = match_regex(response, regex_values_dict_list)
+
                     except (BrokenPipeError, ConnectionResetError):
                         # We'll have to reopen the socket now
                         tcp_socket = create_tcp_socket(host_name, port, timeout)
                         if tcp_socket is None:
                             return None
-                        socket_connection.send(probe)
-
-                        response = socket_connection.recv(1024 * 1024 * 10)
-                        if response:
-                            matches = match_regex(response, regex_values_dict_list)
+                        socket_connection, ssl_flag = tcp_socket
+                        try:
+                            socket_connection.send(probe)
+                            response = socket_connection.recv(1024 * 1024 * 10)
+                            if response:
+                                matches = match_regex(response, regex_values_dict_list)
+                        except Exception as e:
+                            matches = ""
+                            print("Shouldn't come here")
+                    except Exception as e:
+                        print(f"This goes wrong in here: {e}")
             except Exception as e:
-                matches = b""
+                matches = ""
 
+            print(f"This is the match: {matches}")
             return matches
 
         host_name = peer_name[0]
@@ -267,7 +286,7 @@ class SocketLibrary(BaseLibrary):
         # Keeing this seperate from others
         timeout = Config.settings.version_scan_timeout
 
-        custom_probes_resp =  send_custom_probes(host_name, port, timeout)
+        custom_probes_resp =  send_custom_probes(host_name, port, timeout, data)
         # print("This is the custom_probing_response: {}".format(custom_probes_resp))
         if not custom_probes_resp:
             null_probing_response = null_probing(host_name, port, timeout)

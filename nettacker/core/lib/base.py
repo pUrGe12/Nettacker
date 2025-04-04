@@ -278,8 +278,10 @@ class BaseEngine(ABC):
         udp_scan = False
         if options.get("version_scan"):
             version_scan = True
+            probes_data = options["version_probes_raw_data"]
         if options.get("udp_scan"):
             udp_scan = True
+            probes_data = options["version_probes_raw_data"]
 
         for attr_name in ("ports", "usernames", "passwords"):
             if attr_name in sub_step:
@@ -302,10 +304,13 @@ class BaseEngine(ABC):
                     and ("port_scan" in options.get("selected_modules"))
                     and (response is not None)
                 ):
+                    print("inside if")
                     version_action = getattr(self.library(), backup_method_version)
-                    version_action(**response)
+                    response["data"] = probes_data
+                    version_action(**response)      # Calling the function
                 break
-            except Exception:
+            except Exception as e:
+                print(f"exception: {e}")
                 response = []
 
 

@@ -52,7 +52,7 @@ def reverse_and_regex_condition(regex, reverse):
         return []
 
 
-def port_to_probes_and_matches(port_number):
+def port_to_probes_and_matches(port_number, data):
     """
     This function parses the YAML file and queries it
     for the port number given, and returns a specifically
@@ -69,19 +69,25 @@ def port_to_probes_and_matches(port_number):
     case any field is not present for that particular regex, its value is "".
 
     If the port is not present in the YAML file, it returns None
+
+    Update: Now it receives "data" as a parameter
     """
 
     print("inside port_to_probes_and_matches")
     results = {"probes": [], "matches": []}
-
-    from nettacker.core.utils.tasks import load_yaml_task
-    data = load_yaml_task()
     
     for entry in data.get("service_logger", []):
         if int(entry["value"]) == port_number:
+            print(f"inside this if: port_number is: {port_number}")
             results["probes"] = entry.get("probe", [])
+            print(f"probes_list: {results['probes']}")
             matches_list = entry.get("regex", [])
+            print(f"matches_list: {matches_list}")
             break
+        else:
+            print(f"I came inside else for {port_number}")
+            # It doesn't have probes for ports like 3306 (mysql)
+            matches_list = []
 
     # parsing the matches_list
 
@@ -124,8 +130,9 @@ def port_to_probes_and_matches(port_number):
         except Exception:
             pass  # it probably hit a none
 
-    final_result = [parse_match(match, i + 1) for i, match in enumerate(matches_list)]
-    results["matches"] = final_result
+    if matches_list:
+        final_result = [parse_match(match, i + 1) for i, match in enumerate(matches_list)]
+        results["matches"] = final_result
 
     return results
 
