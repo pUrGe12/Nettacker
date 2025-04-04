@@ -142,6 +142,7 @@ class DefaultSettings(ConfigBase):
     time_sleep_between_requests = 0.0
     timeout = 3.0
     version_scan_timeout = 3.0
+    udp_scan = False
     user_agent = "Nettacker {version_number} {version_code}".format(
         version_number=version_info()[0], version_code=version_info()[1]
     )
