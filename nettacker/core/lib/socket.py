@@ -132,7 +132,7 @@ class SocketLibrary(BaseLibrary):
         }
 
 
-    def udp_scan(self, host, port, timeout):
+    def udp_scan(self, host, port, timeout, data):
         """
         This function takes the hostname, port and timeout,
         creates a socket and sends a UDP probe from a list
@@ -144,14 +144,15 @@ class SocketLibrary(BaseLibrary):
         """
         print("inside udp_scan")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_probes_list = extract_UDP_probes(port_to_probes_and_matches(port)["probes"])
-        print(udp_probes_list)
+        udp_probes_list = extract_UDP_probes(port_to_probes_and_matches(port, data)["probes"])
         # The matches ae going to be empty lists anyway        
         for probe in udp_probes_list:
             try:
                 print("sending udp probe")
                 sock.sendto(probe, (target_host, target_port))
                 response, addr = sock.recvfrom(1024)
+                if response:
+                    print(f"response: {response}")
                 sock.close()
             except Exception:
                 try:

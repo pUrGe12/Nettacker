@@ -80,12 +80,12 @@ def port_to_probes_and_matches(port_number, data):
         if int(entry["value"]) == port_number:
             print(f"inside this if: port_number is: {port_number}")
             results["probes"] = entry.get("probe", [])
-            print(f"probes_list: {results['probes']}")
+            # print(f"probes_list: {results['probes']}")
             matches_list = entry.get("regex", [])
-            print(f"matches_list: {matches_list}")
+            # print(f"matches_list: {matches_list}")
             break
         else:
-            print(f"I came inside else for {port_number}")
+            print(f"I came inside else for {entry['value']}")
             # It doesn't have probes for ports like 3306 (mysql)
             matches_list = []
 

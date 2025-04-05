@@ -190,6 +190,20 @@ class Nettacker(ArgParser):
                 targets.remove(target)
         return targets
 
+
+    def load_yaml(self):
+        # Read the YAML file and save it as a paramater value in arguments
+        # This won't hurt anything (even though the variable will be huge and
+        # will probaly consume about 15 MB of RAM) cause python can handle it
+        import yaml
+        log.info(_("loading_probes"))
+        with open(Config.path.probes_file) as stream:
+            data = yaml.safe_load(stream)
+        self.arguments.version_probes_raw_data = data
+        log.info(_("loaded_probes"))
+        # Its probably not ideal, but I can't see why not
+
+
     def run(self):
         """
         preparing for attacks and managing multi-processing for host
@@ -205,17 +219,8 @@ class Nettacker(ArgParser):
         log.info(_("regrouping_targets"))
         # find total number of targets + types + expand (subdomain, IPRanges, etc)
         # optimize CPU usage
-        if self.arguments.version_scan:
-            # Read the YAML file and save it as a paramater value in arguments
-            # This won't hurt anything (even though the variable will be huge and
-            # will probaly consume about 15 MB of RAM) cause python can handle it
-            import yaml
-            log.info(_("loading_probes"))
-            with open(Config.path.probes_file) as stream:
-                data = yaml.safe_load(stream)
-            self.arguments.version_probes_raw_data = data
-            log.info(_("loaded_probes"))
-            # Its probably not ideal, but I can't see why not
+        if self.arguments.version_scan or self.arguments.udp_scan:
+            self.load_yaml()
         self.arguments.targets = self.expand_targets(scan_id)
         if not self.arguments.targets:
             log.info(_("no_live_service_found"))

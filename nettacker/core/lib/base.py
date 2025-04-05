@@ -318,6 +318,7 @@ class BaseEngine(ABC):
             try:
                 if "port_scan" in options.get("selected_modules") and udp_scan:
                     udp_port_scanner = getattr(self.library(), "udp_scan")
+                    sub_step["data"] = probes_data
                     udp_port_scanner(**sub_step)
                     # This is directly printing
             except Exception:
