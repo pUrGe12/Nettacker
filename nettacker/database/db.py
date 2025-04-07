@@ -237,13 +237,13 @@ def find_events(target, module_name, scan_id):
     """
     session = create_connection()
     return (
-        session.query(HostsLog)
+        [row.json_event for row in session.query(HostsLog)
         .filter(
             HostsLog.target == target,
             HostsLog.module_name == module_name,
             HostsLog.scan_unique_id == scan_id,
         )
-        .all()
+        .all()]
     )
 
 
