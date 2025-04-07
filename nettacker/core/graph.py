@@ -84,7 +84,7 @@ def build_text_table(events):
     table_headers = ["date", "target", "module_name", "port", "logs"]
     _table.add_rows([table_headers])
     for event in events:
-        log = merge_logs_to_list(json.loads(event["json_event"]), [])
+        log = merge_logs_to_list(json.loads(json.dumps(event)), [])
         _table.add_rows(
             [
                 table_headers,
