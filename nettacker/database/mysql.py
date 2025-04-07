@@ -13,7 +13,6 @@ def mysql_create_database():
         "mysql+pymysql://{username}:{password}@{host}:{port}".format(**Config.db.as_dict())
     )
 
-    # Earlier we were quering using the engine itself, but we first need to create a connection
     try:
         with engine.connect() as conn:
             existing_databases = conn.execute(text("SHOW DATABASES;"))

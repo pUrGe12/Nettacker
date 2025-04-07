@@ -77,7 +77,6 @@ class DbConfig(ConfigBase):
         Set ssl_mode to "require" if you need to use encrypted
         databases.
     """
-
     engine = "sqlite"
     name = str(CWD / ".data/nettacker.db")
     host = ""
