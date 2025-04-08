@@ -63,14 +63,6 @@ class DbConfig(ConfigBase):
     For sqlite database:
         fill the name of the DB as sqlite,
         DATABASE as the name of the db user wants
-<<<<<<< HEAD
-        other details can be left empty
-    For mysql users:
-        fill the ENGINE name of the DB as mysql
-        NAME as the name of the database you want to create
-        USERNAME, PASSWORD, HOST and the PORT of the MySQL server
-        need to be filled respectively (default port is 3306)
-=======
         Set the journal_mode (default="WAL") and
         synchronous_mode (deafault="NORMAL"). Rest
         of the fields can be left empty
@@ -82,7 +74,6 @@ class DbConfig(ConfigBase):
          NAME as the name of the database you want to create
          USERNAME, PASSWORD, HOST and the PORT of the MySQL server
          need to be filled respectively (default port is 3306)
->>>>>>> 7292072d (managing sqlalchemy along with APSW and it works)
     For postgres users:
         fill the Engine name of the DB as postgres
         NAME as the name of the database user wants
@@ -91,12 +82,12 @@ class DbConfig(ConfigBase):
         Set ssl_mode to "require" if you need to use encrypted
         databases.
     """
-    engine = "mysql"
-    name = "nettacker"
-    host = "localhost"
-    port = 3306
-    username = "root"
-    password = "new_password"
+    engine = "sqlite"
+    name = str(CWD / ".data/nettacker.db")
+    host = ""
+    port = ""
+    username = ""
+    password = ""
     ssl_mode = "disable"
     journal_mode = "WAL"
     synchronous_mode = "NORMAL"
