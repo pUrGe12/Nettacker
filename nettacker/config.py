@@ -63,12 +63,17 @@ class DbConfig(ConfigBase):
     For sqlite database:
         fill the name of the DB as sqlite,
         DATABASE as the name of the db user wants
-        other details can be left empty
+        Set the journal_mode (default="WAL") and
+        synchronous_mode (deafault="NORMAL"). Rest
+        of the fields can be left empty
+        This is the default database:
+        str(CWD / ".data/nettacker.db")
+
     For mysql users:
-        fill the ENGINE name of the DB as mysql
-        NAME as the name of the database you want to create
-        USERNAME, PASSWORD, HOST and the PORT of the MySQL server
-        need to be filled respectively (default port is 3306)
+         fill the ENGINE name of the DB as mysql
+         NAME as the name of the database you want to create
+         USERNAME, PASSWORD, HOST and the PORT of the MySQL server
+         need to be filled respectively (default port is 3306)
     For postgres users:
         fill the Engine name of the DB as postgres
         NAME as the name of the database user wants
@@ -78,13 +83,15 @@ class DbConfig(ConfigBase):
         databases.
     """
 
-    engine = "sqlite"
-    name = str(CWD / ".data/nettacker.db")
-    host = ""
-    port = ""
-    username = ""
-    password = ""
+    engine = "mysql"
+    name = "nettacker"
+    host = "localhost"
+    port = 3306
+    username = "root"
+    password = "new_password"
     ssl_mode = "disable"
+    journal_mode = "WAL"
+    synchronous_mode = "NORMAL"
 
 
 class PathConfig:
