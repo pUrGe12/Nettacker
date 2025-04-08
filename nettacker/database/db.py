@@ -32,7 +32,6 @@ def db_inputs(connection_type):
             **context
         ),
         "mysql": "mysql+pymysql://{username}:{password}@{host}:{port}/{name}".format(**context),
-        "sqlite": "sqlite:///{name}".format(**context),
     }[connection_type]
 
 
@@ -93,9 +92,7 @@ def send_submit_query(session):
     Returns:
         True if submitted success otherwise False
     """
-    print("inside send_submit_query")
     if isinstance(session, tuple):
-        print("inside the if statement")
         connection, cursor = session
         for _ in range(100):
             try:
@@ -184,7 +181,6 @@ def remove_old_logs(options):
         True if success otherwise False
     """
     session = create_connection()
-    print(f"Inside remove old logs and created session: {session}")
     if isinstance(session, tuple):
         connection, cursor = session
 
@@ -236,9 +232,7 @@ def submit_logs_to_db(log):
 
     if isinstance(log, dict):
         session = create_connection()
-        print(f"created session: {session}")
         if isinstance(session, tuple):
-            print("inside the if condition")
             connection, cursor = session
             try:
                 cursor.execute("BEGIN")
@@ -266,7 +260,6 @@ def submit_logs_to_db(log):
                 cursor.close()
 
         else:
-            print(f"This probably didn't work which is why no service: {log}")
             session.add(
                 HostsLog(
                     target=log["target"],
@@ -414,9 +407,8 @@ def find_events(target, module_name, scan_id):
 
     Returns:
         an array with JSON events or an empty array
-    """    
+    """
     session = create_connection()
-    print(f"inside find events and this is the session type: {type(session)}")
     if isinstance(session, tuple):
         connection, cursor = session
 
@@ -434,22 +426,12 @@ def find_events(target, module_name, scan_id):
             rows = cursor.fetchall()
             cursor.close()
             if rows:
-                print(f"This is what we get: {[json.dumps(json.loads(row[0])) for row in rows]}")
                 return [json.dumps((json.loads(row[0]))) for row in rows]
             return []
         except Exception as e:
             print(f"Something went wrong in find_events: {e}")
             return []
     else:
-        print(f"""It was returning this earlier: {
-            session.query(HostsLog)
-            .filter(
-                HostsLog.target == target,
-                HostsLog.module_name == module_name,
-                HostsLog.scan_unique_id == scan_id,
-            )
-            .all()
-            }""")
         return (
             [row.json_event for row in session.query(HostsLog)
             .filter(
