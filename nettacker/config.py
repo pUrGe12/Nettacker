@@ -83,12 +83,12 @@ class DbConfig(ConfigBase):
         databases.
     """
 
-    engine = "mysql"
-    name = "nettacker"
-    host = "localhost"
-    port = 3306
-    username = "root"
-    password = "new_password"
+    engine = "sqlite"
+    name = str(CWD / ".data/nettacker.db")
+    host = ""
+    port = ""
+    username = ""
+    password = ""
     ssl_mode = "disable"
     journal_mode = "WAL"
     synchronous_mode = "NORMAL"
