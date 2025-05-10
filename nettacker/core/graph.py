@@ -84,7 +84,9 @@ def build_text_table(events):
     table_headers = ["date", "target", "module_name", "port", "logs"]
     _table.add_rows([table_headers])
     for event in events:
-        log = merge_logs_to_list(json.loads(event["json_event"]), [])
+        # Patching this from event["json_event"] to json.dumps(event) because
+        # event is now json_event
+        log = merge_logs_to_list(json.loads(json.dumps(event)), [])
         _table.add_rows(
             [
                 table_headers,
@@ -157,7 +159,9 @@ def create_report(options, scan_id):
         )
         index = 1
         for event in all_scan_logs:
-            log_list = merge_logs_to_list(json.loads(event["json_event"]), [])
+            # Patching this from event["json_event"] to json.dumps(event) because
+            # event is now the json_event itself according to find_events in db.py
+            log_list = merge_logs_to_list(json.loads(json.dumps(event)), [])
             html_table_content += log_data.table_items.format(
                 event["date"],
                 event["target"],
@@ -165,7 +169,7 @@ def create_report(options, scan_id):
                 event["port"],
                 "<br>".join(log_list) if log_list else "Detected",  # event["event"], #log
                 index,
-                html.escape(event["json_event"]),
+                html.escape(json.dumps(event)),
             )
             index += 1
         html_table_content += (
