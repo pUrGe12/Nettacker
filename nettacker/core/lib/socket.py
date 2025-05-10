@@ -12,7 +12,7 @@ import time
 
 from nettacker.config import Config
 from nettacker.core.lib.base import BaseEngine, BaseLibrary
-from nettacker.core.utils.common import reverse_and_regex_condition, port_to_probes_and_matches
+from nettacker.core.utils.common import reverse_and_regex_condition, port_to_probes_and_matches, replace_dependent_response
 
 log = logging.getLogger(__name__)
 
