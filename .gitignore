@@ -22,7 +22,7 @@ results.*
 .data*
 *.DS_Store
 *.swp
-
+.csv
 #codacy
 .coverage
 coverage.xml
