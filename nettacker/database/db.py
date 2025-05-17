@@ -50,15 +50,6 @@ def create_connection():
         connection.setbusytimeout(int(config.settings.timeout)*100)
         cursor = connection.cursor()
 
-<<<<<<< HEAD
-    db_engine = create_engine(
-        db_inputs(Config.db.engine),
-        connect_args=connection_args,
-        pool_size=50,
-        pool_pre_ping=True,
-    )
-    Session = sessionmaker(bind=db_engine)
-=======
         # Performance enhancing configurations. Put WAL cause that helps with concurrency
         cursor.execute(f"PRAGMA journal_mode={Config.db.journal_mode}")
         cursor.execute(f"PRAGMA synchronous={Config.db.synchronous_mode}")
@@ -75,7 +66,6 @@ def create_connection():
             pool_pre_ping=True,
         )
         Session = sessionmaker(bind=db_engine)
->>>>>>> 7292072d (managing sqlalchemy along with APSW and it works)
 
         return Session()
 
