@@ -586,7 +586,7 @@ def start_api_subprocess(options):
             app.run(
                 host=options.api_hostname,
                 port=options.api_port,
-                debug=True,
+                debug=options.api_debug_mode,
                 ssl_context="adhoc",
                 threaded=True,
             )
