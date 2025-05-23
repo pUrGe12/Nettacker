@@ -376,6 +376,15 @@ $(document).ready(function () {
       graph_name = this.id;
     });
 
+    // If the user enters a filepath, use that, else the normal texts
+    var username_text = $("#usernames").val().trim();
+    var username_filepath = $("#username_file").val().trim(); 
+    var usernames_data = username_filepath !== "" ? username_filepath : username_text;
+
+    var password_text = $("#passwords").val().trim();
+    var password_filepath = $("#password_file").val().trim(); 
+    var passwords_data = password_filepath !== "" ? password_filepath : password_text;
+    
     // build post data
     var tmp_data = {
       targets: $("#targets").val(),
@@ -395,8 +404,8 @@ $(document).ready(function () {
       verbose_mode: $("#verbose_mode").val(),
       ports: $("#ports").val(),
       socks_proxy: $("#socks_proxy").val(),
-      usernames: $("#usernames").val(),
-      passwords: $("#passwords").val(),
+      usernames: usernames_data,
+      passwords: passwords_data,
       custom_enum_file: $("#enum_file").val(),
     };
 

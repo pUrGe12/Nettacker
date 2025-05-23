@@ -7,6 +7,7 @@ import string
 import time
 from threading import Thread
 from types import SimpleNamespace
+from pathlib import Path
 
 from flask import Flask, jsonify
 from flask import request as flask_request
@@ -248,6 +249,15 @@ def new_scan():
     api_key_is_valid(app, flask_request)
     form_values = dict(flask_request.form)
     raw_report_path_filename = form_values.get("report_path_filename")
+
+    if form_values.get("usernames") and Path(form_values.get("usernames")).is_file():
+        raw_username_filename = form_values.get("usernames")
+        form_values["usernames_list"] = str(raw_username_filename)
+        del form_values["usernames"]
+    if form_values.get("passwords") and Path(form_values.get("passwords")).is_file():
+        raw_password_filename = form_values.get("passwords")
+        form_values["passwords_list"] = str(raw_password_filename)
+        del form_values["passwords"]
 
     # Sanitizing this doesn't make sense because this will not
     # always start from nettacker's root directory.
