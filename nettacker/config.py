@@ -97,6 +97,7 @@ class PathConfig:
 
     data_dir = CWD / ".data"
     database_file = CWD / ".data/nettacker.db"
+    huey_broker = CWD / ".broker/huey_broker.db"
     graph_dir = PACKAGE_PATH / "lib/graph"
     home_dir = CWD
     locale_dir = PACKAGE_PATH / "locale"
