@@ -26,7 +26,7 @@ from nettacker.core.messages import messages as _
 from nettacker.core.module import Module
 from nettacker.core.socks_proxy import set_socks_proxy
 from nettacker.core.utils import common as common_utils
-from nettacker.core.utils.common import wait_for_threads_to_finish
+from nettacker.core.utils.common import wait_for_threads_to_finish, select_maximum_cpu_core
 from nettacker.database.db import find_events, remove_old_logs
 from nettacker.database.mysql import mysql_create_database, mysql_create_tables
 from nettacker.database.postgresql import postgres_create_database
@@ -218,6 +218,9 @@ class Nettacker(ArgParser):
         return exit_code
 
     def start_scan(self, scan_id):
+        print(f"These are arguments: {self.arguments}")
+        if not isinstance(self.arguments.set_hardware_usage, int):
+            self.arguments.set_hardware_usage = select_maximum_cpu_core(self.arguments.set_hardware_usage)
         target_groups = common_utils.generate_target_groups(
             self.arguments.targets, self.arguments.set_hardware_usage
         )
