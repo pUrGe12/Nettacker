@@ -8,12 +8,14 @@ import time
 from threading import Thread
 from types import SimpleNamespace
 
+from nettacker.core.tasks import new_scan_task
 from flask import Flask, jsonify
 from flask import request as flask_request
 from flask import render_template, abort, Response, make_response
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.utils import secure_filename
 
+from nettacker.core.utils.huey_config import huey
 from nettacker import logger
 from nettacker.api.core import (
     get_value,
@@ -247,6 +249,13 @@ def new_scan():
     """
     api_key_is_valid(app, flask_request)
     form_values = dict(flask_request.form)
+    print("This is what we're recievening: {}".format(form_values))         # Trying to see if we've getting malformed data from web itself
+
+    # form_values["targets"] = form_values["targets"]
+    form_values["thread_per_host"] = int(form_values["thread_per_host"])
+    form_values["retries"] = int(form_values["retries"])
+    form_values["timeout"] = int(form_values["timeout"])
+
     raw_report_path_filename = form_values.get("report_path_filename")
     report_path_filename = sanitize_report_path_filename(raw_report_path_filename)
     if not report_path_filename:
@@ -256,12 +265,9 @@ def new_scan():
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
 
-    nettacker_app = Nettacker(api_arguments=SimpleNamespace(**form_values))
-    app.config["OWASP_NETTACKER_CONFIG"]["options"] = nettacker_app.arguments
-    thread = Thread(target=nettacker_app.run)
-    thread.start()
+    task_result = new_scan_task(form_values)
 
-    return jsonify(vars(nettacker_app.arguments)), 200
+    return jsonify(task_result), 200
 
 
 @app.route("/compare/scans", methods=["POST"])

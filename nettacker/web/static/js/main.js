@@ -322,6 +322,10 @@ $(document).ready(function () {
 
   // submit new scan
   $("#submit_new_scan").click(function () {
+    // display processing text
+    $("#processing_request").removeClass("hidden");
+    document.getElementById("processing_msg").innerHTML = "Processing...";
+
     // set variables
     // check ranges
     if (document.getElementById("scan_ip_range").checked) {
@@ -415,6 +419,7 @@ $(document).ready(function () {
         var results = JSON.stringify(res);
         results = results.replaceAll(",", ",<br>");
         document.getElementById("success_msg").innerHTML = results;
+        $("#processing_request").addClass("hidden");
         $("#success_request").removeClass("hidden");
         setTimeout('$("#success_request").addClass("animated fadeOut");', 5000);
         setTimeout('$("#success_request").addClass("hidden");', 6000);
@@ -423,10 +428,12 @@ $(document).ready(function () {
       .fail(function (jqXHR, textStatus, errorThrown) {
         document.getElementById("error_msg").innerHTML = jqXHR.responseText;
         if (errorThrown == "BAD REQUEST") {
+          $("#processing_request").addClass("hidden");
           $("#failed_request").removeClass("hidden");
           setTimeout('$("#failed_request").addClass("hidden");', 5000);
         }
         if (errorThrown == "UNAUTHORIZED") {
+          $("#processing_request").addClass("hidden");
           $("#failed_request").removeClass("hidden");
           setTimeout('$("#failed_request").addClass("hidden");', 5000);
         }
