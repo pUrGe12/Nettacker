@@ -107,6 +107,8 @@ class Nettacker(ArgParser):
         """
         targets = []
         base_path = ""
+        if not isinstance(self.arguments.targets, list):
+            self.arguments.targets = self.arguments.targets.split(",")
         for target in self.arguments.targets:
             if "://" in target:
                 try:
@@ -218,7 +220,6 @@ class Nettacker(ArgParser):
         return exit_code
 
     def start_scan(self, scan_id):
-        print(f"These are arguments: {self.arguments}")
         if not isinstance(self.arguments.set_hardware_usage, int):
             self.arguments.set_hardware_usage = select_maximum_cpu_core(self.arguments.set_hardware_usage)
         target_groups = common_utils.generate_target_groups(
