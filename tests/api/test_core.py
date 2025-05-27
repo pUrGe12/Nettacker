@@ -9,10 +9,12 @@ from nettacker.api.core import (
 from nettacker.config import Config
 from nettacker.core.app import Nettacker
 
+from tests.common import TestCase
+
 # I remember this being so much more robust. We'll have to make it robust. Later though, let's sort the other test cases first
 # Atleast I have something here.
 
-class TestCore(unittest.TestCase):
+class TestCore(TestCase):
     def setUp(self):
         self.app = Flask(__name__)
         self.app.config["OWASP_NETTACKER_CONFIG"] = {"api_access_key": "test_key"}
