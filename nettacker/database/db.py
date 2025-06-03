@@ -12,7 +12,7 @@ from nettacker.core.messages import messages
 from nettacker.database.models import HostsLog, Report, TempEvents
 
 config = Config()
-log = logger.get_logger()
+logging = logger.get_logger()
 
 
 def db_inputs(connection_type):
@@ -94,7 +94,7 @@ def send_submit_query(session):
             finally:
                 connection.close()
         connection.close()
-        log.warn(messages("database_connect_fail"))
+        logging.warn(messages("database_connect_fail"))
         return False
     else:
         try:
@@ -105,7 +105,7 @@ def send_submit_query(session):
                 except Exception:
                     time.sleep(0.1)
         except Exception:
-            log.warn(messages("database_connect_fail"))
+            logging.warn(messages("database_connect_fail"))
             return False
         return False
 
@@ -120,7 +120,7 @@ def submit_report_to_db(event):
     Returns:
         return True if submitted otherwise False
     """
-    log.verbose_info(messages("inserting_report_db"))
+    logging.verbose_info(messages("inserting_report_db"))
     session = create_connection()
 
     if isinstance(session, tuple):
@@ -225,27 +225,45 @@ def submit_logs_to_db(log):
         if isinstance(session, tuple):
             connection, cursor = session
             try:
-                cursor.execute("BEGIN")
-                cursor.execute(
-                    """
-                    INSERT INTO scan_events (target, date, module_name, scan_unique_id, port, event, json_event)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        log["target"],
-                        str(log["date"]),
-                        log["module_name"],
-                        log["scan_id"],
-                        json.dumps(log["port"]),
-                        json.dumps(log["event"]),
-                        json.dumps(log["json_event"]),
-                    ),
-                )
-                return send_submit_query(session)
-            except Exception as e:
-                cursor.execute("ROLLBACK")
-                print(f"There is an issue in submit_logs_to_db: {e}")
-                return False
+                for _ in range(Config.settings.max_retries):
+                    try:
+                        if not connection.in_transaction:
+                            connection.execute("BEGIN")
+                        cursor.execute(
+                            """
+                            INSERT INTO scan_events (target, date, module_name, scan_unique_id, port, event, json_event)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                log["target"],
+                                str(log["date"]),
+                                log["module_name"],
+                                log["scan_id"],
+                                json.dumps(log["port"]),
+                                json.dumps(log["event"]),
+                                json.dumps(log["json_event"]),
+                            ),
+                        )
+                        return send_submit_query(session)
+                    
+                    except apsw.BusyError as e:
+                        if "database is locked" in str(e).lower():
+                            logging.warn(f"[Retry {_ + 1}/{Config.settings.max_retries}] Database is locked. Retrying...")
+                            if connection.in_transaction:
+                                connection.execute("ROLLBACK")
+                            time.sleep(Config.settings.retry_delay)
+                            continue
+                        else:
+                            if connection.in_transaction:
+                                connection.execute("ROLLBACK")
+                            print(f"There is an OperationalError in submit_logs_to_db: {e}")
+                            return False
+                    
+                    except Exception as e:
+                        if connection.in_transaction:
+                            cursor.execute("ROLLBACK")
+                        print(f"There is an issue in submit_logs_to_db: {e}")
+                        return False
             finally:
                 cursor.close()
 
@@ -263,7 +281,7 @@ def submit_logs_to_db(log):
             )
             return send_submit_query(session)
     else:
-        log.warn(messages("invalid_json_type_to_db").format(log))
+        logging.warn(messages("invalid_json_type_to_db").format(log))
         return False
 
 
@@ -283,28 +301,44 @@ def submit_temp_logs_to_db(log):
             connection, cursor = session
         
             try:
-                cursor.execute("BEGIN")
-                cursor.execute(
-                    """
-                    INSERT INTO temp_events (target, date, module_name, scan_unique_id, event_name, port, event, data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        log["target"],
-                        str(log["date"]),
-                        log["module_name"],
-                        log["scan_id"],
-                        log["event_name"],
-                        json.dumps(log["port"]),
-                        json.dumps(log["event"]),
-                        json.dumps(log["data"]),
-                        ),
-                    )
-                return send_submit_query(cursor)
-            except Exception as e:
-                cursor.execute("ROLLBACK")
-                print(f"Something is wrong in submit_temp_logs_to_db: {e}")
-                return False
+                for _ in range(Config.settings.max_retries):
+                    try:
+                        if not connection.in_transaction:
+                            cursor.execute("BEGIN")
+                        cursor.execute(
+                            """
+                            INSERT INTO temp_events (target, date, module_name, scan_unique_id, event_name, port, event, data)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                log["target"],
+                                str(log["date"]),
+                                log["module_name"],
+                                log["scan_id"],
+                                log["event_name"],
+                                json.dumps(log["port"]),
+                                json.dumps(log["event"]),
+                                json.dumps(log["data"]),
+                                ),
+                            )
+                        return send_submit_query(cursor)
+                    except apsw.BusyError as e:
+                        if "database is locked" in str(e).lower():
+                            logging.warn(f"[Retry {_ + 1}/{Config.settings.max_retries}] Database is locked. Retrying...")
+                            if connection.in_transaction:
+                                connection.execute("ROLLBACK")
+                            time.sleep(Config.settings.retry_delay)
+                            continue
+                        else:
+                            if connection.in_transaction:
+                                connection.execute("ROLLBACK")
+                            print(f"There is an OperationalError in submit_logs_to_db: {e}")
+                            return False
+                    except Exception as e:
+                        if connection.in_transaction:
+                            cursor.execute("ROLLBACK")
+                        print(f"Something is wrong in submit_temp_logs_to_db: {e}")
+                        return False
             finally:
                 cursor.close()
         else:
@@ -322,7 +356,7 @@ def submit_temp_logs_to_db(log):
             )
             return send_submit_query(session)
     else:
-        log.warn(messages("invalid_json_type_to_db").format(log))
+        logging.warn(messages("invalid_json_type_to_db").format(log))
         return False
 
 
@@ -360,7 +394,7 @@ def find_temp_events(target, module_name, scan_id, event_name):
                 except Exception as e:
                     time.sleep(0.1)
         except Exception:
-            log.warn(messages("database_connect_fail"))
+            logging.warn(messages("database_connect_fail"))
             return None
         return None
     else:
@@ -380,7 +414,7 @@ def find_temp_events(target, module_name, scan_id, event_name):
                 except Exception:
                     time.sleep(0.1)
         except Exception:
-            log.warn(messages("database_connect_fail"))
+            logging.warn(messages("database_connect_fail"))
             return False
         return False
 
@@ -611,7 +645,7 @@ def last_host_logs(page):
             return hosts
 
         except Exception as e:
-            log.warn(f"Database query failed: {e}")
+            logging.warn(f"Database query failed: {e}")
             return structure(status="error", msg="Database error!")
 
     else:

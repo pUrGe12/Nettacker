@@ -141,6 +141,8 @@ class DefaultSettings(ConfigBase):
     scan_subdomains = False
     selected_modules = None
     url_base_path = None
+    max_retries = 3
+    retry_delay = 5
     read_from_file = ""
     set_hardware_usage = "maximum"  # low, normal, high, maximum
     show_all_modules = False
