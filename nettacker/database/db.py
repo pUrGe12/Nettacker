@@ -94,6 +94,7 @@ def send_submit_query(session):
             finally:
                 connection.close()
         connection.close()
+        # If it doesn't work after a 100 tries, warn the user
         logging.warn(messages("database_connect_fail"))
         return False
     else:
@@ -104,6 +105,8 @@ def send_submit_query(session):
                     return True
                 except Exception:
                     time.sleep(0.1)
+            logging.warn(messages("database_connect_fail"))
+            return False
         except Exception:
             logging.warn(messages("database_connect_fail"))
             return False
@@ -299,9 +302,9 @@ def submit_temp_logs_to_db(log):
         session = create_connection()
         if isinstance(session, tuple):
             connection, cursor = session
-        
+
             try:
-                for _ in range(Config.settings.max_retries):
+                for retry in range(Config.settings.max_retries):
                     try:
                         if not connection.in_transaction:
                             cursor.execute("BEGIN")
@@ -319,29 +322,46 @@ def submit_temp_logs_to_db(log):
                                 json.dumps(log["port"]),
                                 json.dumps(log["event"]),
                                 json.dumps(log["data"]),
-                                ),
-                            )
+                            ),
+                        )
                         return send_submit_query(cursor)
+
                     except apsw.BusyError as e:
                         if "database is locked" in str(e).lower():
-                            logging.warn(f"[Retry {_ + 1}/{Config.settings.max_retries}] Database is locked. Retrying...")
-                            if connection.in_transaction:
-                                connection.execute("ROLLBACK")
+                            logging.warn(f"[Retry {retry + 1}/{Config.settings.max_retries}] Database is locked. Retrying...")
+                            try:
+                                if connection.in_transaction:
+                                    connection.execute("ROLLBACK")
+                            except Exception:
+                                pass
                             time.sleep(Config.settings.retry_delay)
                             continue
                         else:
-                            if connection.in_transaction:
-                                connection.execute("ROLLBACK")
-                            print(f"There is an OperationalError in submit_logs_to_db: {e}")
+                            try:
+                                if connection.in_transaction:
+                                    connection.execute("ROLLBACK")
+                            except Exception:
+                                pass
+                            print(f"There is an OperationalError in submit_temp_logs_to_db: {e}")
                             return False
+
                     except Exception as e:
-                        if connection.in_transaction:
-                            cursor.execute("ROLLBACK")
+                        try:
+                            if connection.in_transaction:
+                                cursor.execute("ROLLBACK")
+                        except Exception:
+                            pass
                         print(f"Something is wrong in submit_temp_logs_to_db: {e}")
                         return False
+
+                # All retries exhausted
+                return False
+
             finally:
                 cursor.close()
+
         else:
+            # SQLAlchemy fallback
             session.add(
                 TempEvents(
                     target=log["target"],
@@ -355,6 +375,7 @@ def submit_temp_logs_to_db(log):
                 )
             )
             return send_submit_query(session)
+
     else:
         logging.warn(messages("invalid_json_type_to_db").format(log))
         return False
@@ -549,7 +570,7 @@ def get_scan_result(id):
             """
             SELECT report_path_filename from reports
             WHERE id = ?
-            """, (id),
+            """, (id,), # this needs to be a tuple (an iterable)
             )
 
         row = cursor.fetchone()
@@ -854,7 +875,7 @@ def logs_to_report_html(target):
         rows = cursor.fetchall()
         cursor.close()
         logs = [
-            str({
+            {
                 "date": log[0],
                 "target": log[1],
                 "module_name": log[2],
@@ -862,7 +883,7 @@ def logs_to_report_html(target):
                 "port": log[4],
                 "event": log[5],
                 "json_event": log[6],
-            })
+            }   # This needs to be a dict itself
 
             for log in rows
         ]
