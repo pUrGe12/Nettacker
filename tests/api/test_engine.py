@@ -1,12 +1,13 @@
-import unittest
-from unittest.mock import patch, MagicMock, ANY, mock_open
-from flask import template_rendered
-from flask.testing import FlaskClient
+import json
 from contextlib import contextmanager
+from types import SimpleNamespace
+from unittest.mock import patch, MagicMock, ANY, mock_open
+
+from flask import template_rendered
+
 from nettacker.api.engine import app
 from tests.common import TestCase
-from types import SimpleNamespace
-import json
+
 
 @contextmanager
 def captured_templates(app):
@@ -31,7 +32,7 @@ class TestEngine(TestCase):
         app.config["OWASP_NETTACKER_CONFIG"] = {
             "api_client_whitelisted_ips": [],
             "api_access_log": False,
-            "api_access_key": "test_key",	# Setting up a static testing key
+            "api_access_key": "test_key",  # Setting up a static testing key
         }
         self.client = app.test_client()
 
@@ -78,14 +79,18 @@ class TestEngine(TestCase):
 
         form_data = {
             "report_path_filename": "mocked_filename",
-        	"selected_modules": "test_module",
-        	"target": "127.0.0.1"
+            "selected_modules": "test_module",
+            "target": "127.0.0.1",
         }
 
-        response = self.client.post("/new/scan", data=form_data) # Posting the most basic part of the data
+        response = self.client.post(
+            "/new/scan", data=form_data
+        )  # Posting the most basic part of the data
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("mocked_filename", response.get_data(as_text=True)) # The filename we chose should be inside this
+        self.assertIn(
+            "mocked_filename", response.get_data(as_text=True)
+        )  # The filename we chose should be inside this
 
         mock_sanitize.assert_called_once_with("mocked_filename")
 
@@ -100,24 +105,31 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.generate_compare_filepath")
     @patch("nettacker.api.engine.create_compare_report")
-    def test_compare_scan(self, mock_create_compare_report, mock_generate_compare_filepath, mock_get_value, mock_api_key_is_valid):
+    def test_compare_scan(
+        self,
+        mock_create_compare_report,
+        mock_generate_compare_filepath,
+        mock_get_value,
+        mock_api_key_is_valid,
+    ):
         mock_api_key_is_valid.return_value = True
-        mock_get_value.side_effect = ["scan_id_1", "scan_id_2", ""]  # simulating a missing report path to see how it reacts
+        mock_get_value.side_effect = [
+            "scan_id_1",
+            "scan_id_2",
+            "",
+        ]  # simulating a missing report path to see how it reacts
         mock_generate_compare_filepath.return_value = "testing_path"
         mock_create_compare_report.return_value = True
 
         form_data = {}
-        response = self.client.post("/compare/scans", data = form_data)
+        response = self.client.post("/compare/scans", data=form_data)
         self.assertEqual(response.status_code, 200)
         self.assertIn("scan_comparison_completed", response.get_data(as_text=True))
         mock_get_value.assert_any_call(ANY, "scan_id_first")
         mock_get_value.assert_any_call(ANY, "scan_id_second")
         mock_create_compare_report.assert_called_once_with(
-            {
-                "scan_compare_id": "scan_id_2",
-                "compare_report_path_filename": "testing_path"
-            },
-            "scan_id_1"
+            {"scan_compare_id": "scan_id_2", "compare_report_path_filename": "testing_path"},
+            "scan_id_1",
         )
 
     @patch("nettacker.api.engine.api_key_is_valid")
@@ -135,10 +147,7 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.create_compare_report")
     def test_compare_scan_file_exception(
-        self,
-        mock_create_compare_report,
-        mock_get_value,
-        mock_api_key_is_valid
+        self, mock_create_compare_report, mock_get_value, mock_api_key_is_valid
     ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.side_effect = ["scan_id_1", "scan_id_2", "some_path"]
@@ -153,10 +162,7 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.create_compare_report")
     def test_compare_scan_not_found(
-        self,
-        mock_create_compare_report,
-        mock_get_value,
-        mock_api_key_is_valid
+        self, mock_create_compare_report, mock_get_value, mock_api_key_is_valid
     ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.side_effect = ["scan_id_1", "scan_id_2", "path"]
@@ -169,16 +175,16 @@ class TestEngine(TestCase):
 
     @patch("nettacker.api.engine.api_key_is_valid")
     def test_session_check(self, mock_api_key_is_valid):
-    	mock_api_key_is_valid.return_value = True
-    	response = self.client.get("/session/check")
+        mock_api_key_is_valid.return_value = True
+        response = self.client.get("/session/check")
 
-    	self.assertEqual(response.status_code, 200)
-    	self.assertIn('"status":"ok"', response.get_data(as_text=True))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"status":"ok"', response.get_data(as_text=True))
 
     @patch("nettacker.api.engine.api_key_is_valid")
     def test_session_set_success(self, mock_api_key_is_valid):
         mock_api_key_is_valid.return_value = True
-    	
+
         response = self.client.get("/session/set")
         self.assertEqual(response.status_code, 200)
         self.assertIn('"status":"ok"', response.get_data(as_text=True))
@@ -199,7 +205,9 @@ class TestEngine(TestCase):
         cookies = response.headers.getlist("Set-Cookie")
 
         # flask handles expires=0 like this internally using 1970
-        cookie_found = any("key=" in cookie and "Expires=Thu, 01 Jan 1970" in cookie for cookie in cookies)
+        cookie_found = any(
+            "key=" in cookie and "Expires=Thu, 01 Jan 1970" in cookie for cookie in cookies
+        )
         self.assertTrue(cookie_found, "Session cookie not properly cleared")
 
     @patch("nettacker.api.engine.api_key_is_valid")
@@ -208,11 +216,11 @@ class TestEngine(TestCase):
         mock_api_key_is_valid.return_value = True
         mock_data = [
             {
-            "id": 1,
-            "date": "2025-05-14 15:00:00",
-            "scan_id": "abc123",
-            "report_path_filename": "report.json",
-            "options": {"target": "127.0.0.1", "method": "port_scan"}
+                "id": 1,
+                "date": "2025-05-14 15:00:00",
+                "scan_id": "abc123",
+                "report_path_filename": "report.json",
+                "options": {"target": "127.0.0.1", "method": "port_scan"},
             }
         ]
         mock_select_reports.return_value = mock_data
@@ -225,7 +233,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.get_scan_result")
-    def test_get_result_content_success(self, mock_get_scan_result, mock_get_value, mock_api_key_is_valid):
+    def test_get_result_content_success(
+        self, mock_get_scan_result, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "test_scan"
         mock_get_scan_result.return_value = ("report.json", '{"target": "127.0.0.1"}')
@@ -234,7 +244,9 @@ class TestEngine(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "application/json")
-        self.assertIn("attachment;filename=report.json", response.headers.get("Content-Disposition"))
+        self.assertIn(
+            "attachment;filename=report.json", response.headers.get("Content-Disposition")
+        )
         self.assertIn("127.0.0.1", response.data.decode())
 
     @patch("nettacker.api.engine.api_key_is_valid")
@@ -251,7 +263,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.get_scan_result")
-    def test_get_result_content_db_error(self, mock_get_scan_result, mock_get_value, mock_api_key_is_valid):
+    def test_get_result_content_db_error(
+        self, mock_get_scan_result, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "test_scan"
         mock_get_scan_result.side_effect = Exception("DB error")
@@ -264,7 +278,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.get_scan_result")
-    def test_get_result_content_unknown_extension(self, mock_get_scan_result, mock_get_value, mock_api_key_is_valid):
+    def test_get_result_content_unknown_extension(
+        self, mock_get_scan_result, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "test_scan"
         mock_get_scan_result.return_value = ("test.unknownext", "test content")
@@ -273,7 +289,9 @@ class TestEngine(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "text/plain")
-        self.assertIn("attachment;filename=test.unknownext", response.headers.get("Content-Disposition"))
+        self.assertIn(
+            "attachment;filename=test.unknownext", response.headers.get("Content-Disposition")
+        )
         self.assertIn("test content", response.data.decode())
 
     @patch("nettacker.api.engine.api_key_is_valid")
@@ -281,7 +299,11 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.create_connection")
     @patch("nettacker.api.engine.get_logs_by_scan_id")
     def test_get_results_json_success(
-        self, mock_get_logs_by_scan_id, mock_create_connection, mock_get_value, mock_api_key_is_valid
+        self,
+        mock_get_logs_by_scan_id,
+        mock_create_connection,
+        mock_get_value,
+        mock_api_key_is_valid,
     ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "123"
@@ -304,7 +326,7 @@ class TestEngine(TestCase):
                 "date": "2024-01-01",
                 "port": [80],
                 "event": {"status": "open"},
-                "json_event": '{"status": "open"}'
+                "json_event": '{"status": "open"}',
             }
         ]
 
@@ -312,7 +334,9 @@ class TestEngine(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "application/json")
-        self.assertIn("attachment;filename=/results/abc.json", response.headers["Content-Disposition"])
+        self.assertIn(
+            "attachment;filename=/results/abc.json", response.headers["Content-Disposition"]
+        )
         self.assertIn('"target": "127.0.0.1"', response.get_data(as_text=True))
 
     @patch("nettacker.api.engine.api_key_is_valid")
@@ -328,7 +352,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.create_connection")
-    def test_get_results_json_invalid_id(self, mock_create_connection, mock_get_value, mock_api_key_is_valid):
+    def test_get_results_json_invalid_id(
+        self, mock_create_connection, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "non-existent-id"
 
@@ -346,8 +372,12 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.create_connection")
     @patch("nettacker.api.engine.get_logs_by_scan_id")
     def test_get_results_csv_success(
-        self, mock_get_logs_by_scan_id, mock_create_connection, mock_get_value, mock_api_key_is_valid
-        ):
+        self,
+        mock_get_logs_by_scan_id,
+        mock_create_connection,
+        mock_get_value,
+        mock_api_key_is_valid,
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "123"
 
@@ -367,7 +397,7 @@ class TestEngine(TestCase):
                 "date": "2024-01-01",
                 "port": [80],
                 "event": {"status": "open"},
-                "json_event": '{"status": "open"}'
+                "json_event": '{"status": "open"}',
             }
         ]
 
@@ -381,7 +411,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.create_connection")
-    def test_get_results_csv_invalid_id(self, mock_create_connection, mock_get_value, mock_api_key_is_valid):
+    def test_get_results_csv_invalid_id(
+        self, mock_create_connection, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "non-existent-id"
 
@@ -406,7 +438,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.create_connection")
-    def test_logs_get_list_valid_page(self, mock_create_connection, mock_get_value, mock_api_key_is_valid):
+    def test_logs_get_list_valid_page(
+        self, mock_create_connection, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "1"
 
@@ -435,7 +469,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.create_connection")
-    def test_logs_get_list_invalid_page(self, mock_create_connection, mock_get_value, mock_api_key_is_valid):
+    def test_logs_get_list_invalid_page(
+        self, mock_create_connection, mock_get_value, mock_api_key_is_valid
+    ):
         mock_api_key_is_valid.return_value = True
         mock_get_value.return_value = "9999"  # simulate page too far
 
@@ -469,7 +505,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.logs_to_report_html")
-    def test_logs_get_html_valid_target(self, mock_logs_to_html, mock_get_value, mock_api_key_valid):
+    def test_logs_get_html_valid_target(
+        self, mock_logs_to_html, mock_get_value, mock_api_key_valid
+    ):
         mock_api_key_valid.return_value = True
         mock_get_value.return_value = "192.168.0.1"
         mock_logs_to_html.return_value = "<html><body>Report</body></html>"
@@ -482,7 +520,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.logs_to_report_html")
-    def test_logs_get_html_missing_target(self, mock_logs_to_html, mock_get_value, mock_api_key_valid):
+    def test_logs_get_html_missing_target(
+        self, mock_logs_to_html, mock_get_value, mock_api_key_valid
+    ):
         mock_api_key_valid.return_value = True
         mock_get_value.return_value = None
         mock_logs_to_html.return_value = "<html><body>No Target</body></html>"
@@ -490,7 +530,9 @@ class TestEngine(TestCase):
         response = self.client.get("/logs/get_html")  # not giving the ?target= paramter
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.content_type)
-        self.assertIn("No Target", response.get_data(as_text=True)) # <html><body>No Target</body></html>
+        self.assertIn(
+            "No Target", response.get_data(as_text=True)
+        )  # <html><body>No Target</body></html>
 
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
@@ -507,7 +549,10 @@ class TestEngine(TestCase):
         response = self.client.get("/logs/get_json?target=192.168.0.1")
         self.assertEqual(response.status_code, 200)
         self.assertIn("application/json", response.content_type)
-        self.assertIn("attachment;filename=report-2025_05_14_12_00_00", response.headers["Content-Disposition"])
+        self.assertIn(
+            "attachment;filename=report-2025_05_14_12_00_00",
+            response.headers["Content-Disposition"],
+        )
         self.assertEqual(json.loads(response.get_data(as_text=True)), [{"event": "test"}])
 
     @patch("nettacker.api.engine.api_key_is_valid")
@@ -544,16 +589,17 @@ class TestEngine(TestCase):
     ):
         mock_api_key_valid.return_value = True
         mock_get_value.return_value = "192.168.0.1"
-        mock_logs_to_json.return_value = [
-            {"target": "127.0.0.1", "module": "ping"}
-        ]
+        mock_logs_to_json.return_value = [{"target": "127.0.0.1", "module": "ping"}]
         mock_now.return_value = "2025_05_14_12_00_00"
 
         response = self.client.get("/logs/get_csv?target=192.168.0.1")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/csv", response.content_type)
-        self.assertIn("attachment;filename=report-2025_05_14_12_00_00abcdefghij.csv", response.headers["Content-Disposition"])
+        self.assertIn(
+            "attachment;filename=report-2025_05_14_12_00_00abcdefghij.csv",
+            response.headers["Content-Disposition"],
+        )
         self.assertIn("mocked_csv_data", response.get_data(as_text=True))
         mock_open_fn.assert_any_call("report-2025_05_14_12_00_00abcdefghij", "w")
         mock_open_fn.assert_any_call("report-2025_05_14_12_00_00abcdefghij", "r")
@@ -575,22 +621,25 @@ class TestEngine(TestCase):
     ):
         mock_api_key_valid.return_value = True
         mock_get_value.return_value = None
-        mock_logs_to_json.return_value = [
-            {"target": "unknown", "module": "x"}
-        ]
+        mock_logs_to_json.return_value = [{"target": "unknown", "module": "x"}]
         mock_now.return_value = "2025_05_14_12_00_00"
 
         response = self.client.get("/logs/get_csv")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/csv", response.content_type)
-        self.assertIn("attachment;filename=report-2025_05_14_12_00_00abcdefghij.csv", response.headers["Content-Disposition"])
+        self.assertIn(
+            "attachment;filename=report-2025_05_14_12_00_00abcdefghij.csv",
+            response.headers["Content-Disposition"],
+        )
         self.assertIn("mocked_csv_data", response.get_data(as_text=True))
 
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.search_logs")
-    def test_search_logs_valid_query_and_page(self, mock_search_logs, mock_get_value, mock_api_key_valid):
+    def test_search_logs_valid_query_and_page(
+        self, mock_search_logs, mock_get_value, mock_api_key_valid
+    ):
         mock_api_key_valid.return_value = True
         # `get_value` called twice: once for "page", once for "q"
         mock_get_value.side_effect = ["2", "ping"]  # page=2, q="ping"
@@ -606,7 +655,9 @@ class TestEngine(TestCase):
     @patch("nettacker.api.engine.api_key_is_valid")
     @patch("nettacker.api.engine.get_value")
     @patch("nettacker.api.engine.search_logs")
-    def test_search_logs_missing_query_and_page(self, mock_search_logs, mock_get_value, mock_api_key_valid):
+    def test_search_logs_missing_query_and_page(
+        self, mock_search_logs, mock_get_value, mock_api_key_valid
+    ):
         mock_api_key_valid.return_value = True
         # Simulate get_value raising exception for both page and query
         mock_get_value.side_effect = Exception("no value")

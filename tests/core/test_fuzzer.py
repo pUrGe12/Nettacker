@@ -1,6 +1,8 @@
 from unittest.mock import patch, mock_open, MagicMock
+
 from nettacker.core.fuzzer import read_from_file
 from tests.common import TestCase
+
 
 class TestFuzzer(TestCase):
     @patch("nettacker.core.fuzzer.Config")
