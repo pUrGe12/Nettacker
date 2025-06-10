@@ -221,7 +221,9 @@ class Nettacker(ArgParser):
 
     def start_scan(self, scan_id):
         if not isinstance(self.arguments.set_hardware_usage, int):
-            self.arguments.set_hardware_usage = select_maximum_cpu_core(self.arguments.set_hardware_usage)
+            self.arguments.set_hardware_usage = select_maximum_cpu_core(
+                self.arguments.set_hardware_usage
+            )
         target_groups = common_utils.generate_target_groups(
             self.arguments.targets, self.arguments.set_hardware_usage
         )

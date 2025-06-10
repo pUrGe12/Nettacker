@@ -552,21 +552,18 @@ class ArgParser(ArgumentParser):
         # API mode
         if options.start_api_server:
             # If API server is called, run huey
-            import subprocess
             import os
+            import subprocess
 
             # Directory's important for the consumer
             os.makedirs(Config.path.huey_broker_dir, exist_ok=True)
-            process = subprocess.Popen([
-                "huey_consumer",
-                "nettacker.core.tasks.huey",
-                "-w", "100",
-                "-k", "process"
-            ])
+            process = subprocess.Popen(
+                ["huey_consumer", "nettacker.core.tasks.huey", "-w", "100", "-k", "process"]
+            )
 
             if "--start-api" in sys.argv and self.api_arguments:
                 die_failure(_("cannot_run_api_server"))
-                process.kill() 
+                process.kill()
             from nettacker.api.engine import start_api_server
 
             if options.api_client_whitelisted_ips:

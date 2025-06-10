@@ -1,22 +1,18 @@
 import csv
 import json
 import multiprocessing
-import psutil
 import os
 import random
 import string
 import time
-from threading import Thread
-from types import SimpleNamespace
 
-from nettacker.core.tasks import new_scan_task
+import psutil
 from flask import Flask, jsonify
 from flask import request as flask_request
 from flask import render_template, abort, Response, make_response
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.utils import secure_filename
 
-from nettacker.core.utils.huey_config import huey
 from nettacker import logger
 from nettacker.api.core import (
     get_value,
@@ -30,11 +26,12 @@ from nettacker.api.core import (
 )
 from nettacker.api.helpers import structure
 from nettacker.config import Config
-from nettacker.core.app import Nettacker
 from nettacker.core.die import die_failure
 from nettacker.core.graph import create_compare_report
 from nettacker.core.messages import messages as _
+from nettacker.core.tasks import new_scan_task
 from nettacker.core.utils.common import now, generate_compare_filepath
+from nettacker.core.utils.huey_config import huey
 from nettacker.database.db import (
     create_connection,
     get_logs_by_scan_id,
@@ -611,17 +608,17 @@ def start_api_server(options):
             p.terminate()
             p.join(timeout=5)
             try:
-            # Close huey processes here as well
+                # Close huey processes here as well
                 log.write_to_api_console("[+] Flushing Huey queue\n")
-                num_flushed = huey.flush()
-            except Exception as e:
-                pass # This means it couldn't flush
+                huey.flush()
+            except Exception:
+                pass  # This means it couldn't flush
 
             log.write_to_api_console("[+] Terminating Huey processes\n")
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
-                    cmdline = proc.info.get('cmdline')
-                    if cmdline and any('nettacker.core.tasks.huey' in cmd for cmd in cmdline):
+                    cmdline = proc.info.get("cmdline")
+                    if cmdline and any("nettacker.core.tasks.huey" in cmd for cmd in cmdline):
                         proc.kill()
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     # This means it already died
