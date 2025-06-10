@@ -1,6 +1,7 @@
 import csv
 import json
 import multiprocessing
+import psutil
 import os
 import random
 import string
@@ -603,10 +604,26 @@ def start_api_server(options):
     p.start()
     # Sometimes it's take much time to terminate flask with CTRL+C
     # So It's better to use KeyboardInterrupt to terminate!
-    while len(multiprocessing.active_children()) != 0:
+    while p.is_alive():
         try:
             time.sleep(0.3)
         except KeyboardInterrupt:
-            for process in multiprocessing.active_children():
-                process.terminate()
+            p.terminate()
+            p.join(timeout=5)
+            try:
+            # Close huey processes here as well
+                log.write_to_api_console("[+] Flushing Huey queue\n")
+                num_flushed = huey.flush()
+            except Exception as e:
+                pass # This means it couldn't flush
+
+            log.write_to_api_console("[+] Terminating Huey processes\n")
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info.get('cmdline')
+                    if cmdline and any('nettacker.core.tasks.huey' in cmd for cmd in cmdline):
+                        proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    # This means it already died
+                    continue
             break
