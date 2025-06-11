@@ -9,7 +9,7 @@ import yaml
 
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
-from nettacker.core.utils.common import merge_logs_to_list
+from nettacker.core.utils.common import merge_logs_to_list, port_to_probes_and_matches_udp, extract_UDP_probes
 from nettacker.database.db import find_temp_events, submit_temp_logs_to_db, submit_logs_to_db
 from nettacker.logger import get_logger, TerminalCodes
 
@@ -246,6 +246,7 @@ class BaseEngine(ABC):
                     total_number_of_requests,
                 )
             )
+            print(f"This is the event that was failing: {event}")
             log.verbose_info(json.dumps(event))
             return "save_to_temp_events_only" in event["response"]
 
@@ -271,9 +272,13 @@ class BaseEngine(ABC):
         del sub_step["method"]
         del sub_step["response"]
 
+        # This is the new stuff
         backup_method_version = copy.deepcopy(sub_step["method_version"])
-        del sub_step["method_version"]
+        backup_udp_scan = copy.deepcopy(sub_step["method_udp_scan"])
 
+        del sub_step["method_udp_scan"]
+        del sub_step["method_version"]
+        print("do I endup here every thread?")
         version_scan = False
         udp_scan = False
         if options.get("version_scan"):
@@ -281,7 +286,8 @@ class BaseEngine(ABC):
             probes_data = options["version_probes_raw_data"]
         if options.get("udp_scan"):
             udp_scan = True
-            probes_data = options["version_probes_raw_data"]
+            udp_probes = options["udp_probes"]
+        # Till here
 
         for attr_name in ("ports", "usernames", "passwords"):
             if attr_name in sub_step:
@@ -295,10 +301,11 @@ class BaseEngine(ABC):
             sub_step = self.replace_dependent_values(sub_step, temp_event)
 
         action = getattr(self.library(), backup_method)
-        version_response = ""
         for _i in range(options["retries"]):
             try:
                 response = action(**sub_step)
+
+                # And here again
                 if (
                     (version_scan)
                     and ("port_scan" in options.get("selected_modules"))
@@ -307,26 +314,31 @@ class BaseEngine(ABC):
                     print("inside if")
                     version_action = getattr(self.library(), backup_method_version)
                     response["data"] = probes_data
-                    version_action(**response)      # Calling the function
+                    version_action(**response)  # Calling the function
                 break
             except Exception as e:
+                # We sometimes hit this exception when .getservbyport() doesn't work
                 print(f"exception: {e}")
+                print("it was for port: {}".format(sub_step.get("port", 0)))
                 response = []
-
 
         for _i in range(options["retries"]):
             try:
                 if "port_scan" in options.get("selected_modules") and udp_scan:
-                    udp_port_scanner = getattr(self.library(), "udp_scan")
-                    sub_step["data"] = probes_data
-                    udp_port_scanner(**sub_step)
+                    udp_port_scanner = getattr(self.library(), backup_udp_scan)
+                    sub_step["udp_probes"] = udp_probes
+                    response = udp_port_scanner(**sub_step)
                     # This is directly printing
-            except Exception:
+                    del sub_step["udp_probes"]
+                    print(f"\n\nThis is the sub_step now: {sub_step}\n\n")
+            except Exception as e:
+                print(f"hit exception: {e}")
                 response = []
 
         sub_step["method"] = backup_method
         sub_step["response"] = backup_response
         sub_step["method_version"] = backup_method_version  # Need to add this!
+        sub_step["method_udp_scan"] = backup_udp_scan
         sub_step["response"]["conditions_results"] = response
 
         self.apply_extra_data(sub_step, response)

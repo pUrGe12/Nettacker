@@ -9,10 +9,16 @@ import socket
 import ssl
 import struct
 import time
+import threading 
 
 from nettacker.config import Config
 from nettacker.core.lib.base import BaseEngine, BaseLibrary
-from nettacker.core.utils.common import reverse_and_regex_condition, port_to_probes_and_matches, replace_dependent_response
+from nettacker.core.utils.common import (
+    reverse_and_regex_condition,
+    port_to_probes_and_matches,
+    port_to_probes_and_matches_udp,
+    replace_dependent_response,
+)
 
 log = logging.getLogger(__name__)
 
@@ -39,20 +45,6 @@ def create_tcp_socket(host, port, timeout):
     return socket_connection, ssl_flag
 
 
-def extract_UDP_probes(probes_list):
-    """
-    Checking if UDP is there after "Probe" header
-    and if it is, then appending the bytes to the
-    list and finally returning that.
-    """
-    print("extracting_UDP_probes")
-    return [
-        bytes(probe.split("q|" if "q|" in probe else "q/")[1][:-1], encoding="utf-8")
-        for probe in probes_list
-        if "UDP" in probe.split("q|" if "q|" in probe else "q/")[0].split(" ")
-    ]
-
-
 def extract_probes(probes_list):
     """
     Each probe in the probe_list looks like this:
@@ -65,12 +57,16 @@ def extract_probes(probes_list):
     This function won't do any TCP/UDP detection. Going
     under the assumption that all probes in a single list
     will be under the same protocol (because same port)
-    
+
     I am also neglecting the probe names, but later they
     might be useful for memoisation.
     """
-    return [bytes(probe.split("q|")[1][:-1], encoding="utf-8") if "q|" in probe
-    else bytes(probe.split("q/")[1][1:], encoding="utf-8") for probe in probes_list]
+    return [
+        bytes(probe.split("q|")[1][:-1], encoding="utf-8")
+        if "q|" in probe
+        else bytes(probe.split("q/")[1][1:], encoding="utf-8")
+        for probe in probes_list
+    ]
 
 
 def match_regex(response, regex_value_dict_list):
@@ -82,30 +78,27 @@ def match_regex(response, regex_value_dict_list):
         ]
     This function tries to match the response with each regex value. For the
     matched ones, it returns all the other params.
-    
+
     returns: [entire_match_dict] of that probe
     or [] if nothing matched
     """
     try:
-        print("inside match_regex")
         i = 1
         response = response.decode("utf-8", errors="ignore")
-        print("decoded response")   
         # otherwise we run into the cannot use a string pattern on a bytes-like object
         for match_dict in regex_value_dict_list:
-            print(f"this is the match dict: {match_dict} \n\n")
             if match_dict is not None:
                 match_name = f"match_{i}"
                 try:
                     list_of_matches = re.findall(
-                        re.compile(match_dict[match_name]["regex"]),
-                        response)
+                        re.compile(match_dict[match_name]["regex"]), response
+                    )
                     if list_of_matches:
                         return match_dict
                     if i == len(regex_value_dict_list):
                         break
                     i += 1
-                except Exception as e:
+                except Exception:
                     # Shouldn't come here at all, kept for safety
                     pass
             else:
@@ -115,6 +108,7 @@ def match_regex(response, regex_value_dict_list):
     except Exception as e:
         print(f"This goes wrong inside match_regex: {e}")
         return []
+
 
 class SocketLibrary(BaseLibrary):
     def tcp_connect_only(self, host, port, timeout):
@@ -131,31 +125,42 @@ class SocketLibrary(BaseLibrary):
             "ssl_flag": ssl_flag,
         }
 
-
-    def udp_scan(self, host, port, timeout, data):
+    def udp_scan(self, host, port, timeout, udp_probes):
         """
         This function takes the hostname, port and timeout,
         creates a socket and sends a UDP probe from a list
         of UDP probes extracted from the YAML file via the
         extract_udp_probes function.
-        
+
         It checks multiple ports parallely and returns a
         list of those running a UDP service
         """
         print("inside udp_scan")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_probes_list = extract_UDP_probes(port_to_probes_and_matches(port, data)["probes"])
-        # The matches ae going to be empty lists anyway        
-        for probe in udp_probes_list:
+        peer_name = sock.getpeername()
+        sock.settimeout(timeout)
+        print(f"trying: {host}:{port}")
+
+        # Don't have to do this, we can do multithreading here
+        for probe in udp_probes:
+            print(f"Trying probe: {probe}")
             try:
-                print("sending udp probe")
-                sock.sendto(probe, (target_host, target_port))
+                # We need to put a timeout here
+                sock.sendto(probe, (host, port))
                 response, addr = sock.recvfrom(1024)
                 if response:
                     print(f"response: {response}")
                 sock.close()
+                break
+                # We closed the socket after the response
+                # Techincally correct, but for debugging, I am keeping this open
+                # We should get a return type here, and use that to log inside base.py
+            except socket.timeout:
+                print(f"No response from {host}:{port} after {timeout} seconds")
+                response = b""
             except Exception:
                 try:
+                    print(f"we've hit this exception: {e}")
                     sock.close()
                     response = b""
                 except Exception:
@@ -163,14 +168,24 @@ class SocketLibrary(BaseLibrary):
             if response:
                 print(f"received some response: {response}")
 
+        # return {
+        # "peer_name": peer_name,
+        # "service": socket.getservbyport(int(port)),
+        # "response": response
+        # }
+
+        # Note that we aren't returning anything as of yet.
 
     def tcp_connect_send_and_receive(self, host, port, timeout):
+        print("inside tcp_connect_send_and_receive")
         tcp_socket = create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
+            print("Was this the issue?")
             return None
 
         socket_connection, ssl_flag = tcp_socket
         peer_name = socket_connection.getpeername()
+        print(f"Trying: {host}:{port}")
         try:
             socket_connection.send(b"ABC\x00\r\n\r\n\r\n" * 10)
             response = socket_connection.recv(1024 * 1024 * 10)
@@ -179,18 +194,19 @@ class SocketLibrary(BaseLibrary):
         # except ConnectionRefusedError:
         #     return None
         except Exception:
+            print("This is here>")
             try:
                 socket_connection.close()
                 response = b""
             except Exception:
                 response = b""
+        print("just before returning")
         return {
             "peer_name": peer_name,
             "service": socket.getservbyport(port),
             "response": response.decode(errors="ignore"),
             "ssl_flag": ssl_flag,
         }
-
 
     def tcp_version_scan(self, peer_name, service, response, ssl_flag, data):
         """
@@ -203,6 +219,7 @@ class SocketLibrary(BaseLibrary):
         4. If none matched, it returns an empty string
         """
         print("visited tcp_version_scan")
+
         def null_probing(host_name, port, timeout):
             """
             This is a null prober. Simply waits for the service to
@@ -216,7 +233,7 @@ class SocketLibrary(BaseLibrary):
                 socket_connection.send(b"")
                 response = socket_connection.recv(1024 * 1024 * 10)
                 print(f"got response from null probing: {response}")
-            except Exception as e:
+            except Exception:
                 response = b""
             return response.decode(errors="ignore")
 
@@ -227,7 +244,7 @@ class SocketLibrary(BaseLibrary):
             which returns a tuple formatted like this:
             {"probes": [probes], "matches": [{"match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}},
             {"match_2": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}}]}
-            
+
             This function creates a tcp socket for the host and port. For each
             probe in the probe list it sends the bytes, holds the service name and tries
             all the matches with the response (if it receives a response). For any
@@ -270,12 +287,12 @@ class SocketLibrary(BaseLibrary):
                             response = socket_connection.recv(1024 * 1024 * 10)
                             if response:
                                 matches = match_regex(response, regex_values_dict_list)
-                        except Exception as e:
+                        except Exception:
                             matches = ""
                             print("Shouldn't come here")
                     except Exception as e:
                         print(f"This goes wrong in here: {e}")
-            except Exception as e:
+            except Exception:
                 matches = ""
 
             print(f"This is the match: {matches}")
@@ -287,12 +304,11 @@ class SocketLibrary(BaseLibrary):
         # Keeing this seperate from others
         timeout = Config.settings.version_scan_timeout
 
-        custom_probes_resp =  send_custom_probes(host_name, port, timeout, data)
+        custom_probes_resp = send_custom_probes(host_name, port, timeout, data)
         # print("This is the custom_probing_response: {}".format(custom_probes_resp))
         if not custom_probes_resp:
             null_probing_response = null_probing(host_name, port, timeout)
             # print("This is the null_probing_response: {}".format(null_probing_response))
-
 
     def socket_icmp(self, host, timeout):
         """
@@ -441,6 +457,7 @@ class SocketEngine(BaseEngine):
     library = SocketLibrary
 
     def response_conditions_matched(self, sub_step, response):
+        print(f"This is the sub_step: {sub_step} \n\n")
         conditions = sub_step["response"]["conditions"].get(
             "service", sub_step["response"]["conditions"]
         )
@@ -497,6 +514,9 @@ class SocketEngine(BaseEngine):
                 return []
         if sub_step["method"] == "socket_icmp":
             return response
+
+        if sub_step["method_udp_scan"] == "udp_scan":  # Will only be true for port scans
+            print("yeah we can do shit here")
         return []
 
     def apply_extra_data(self, sub_step, response):
@@ -505,4 +525,4 @@ class SocketEngine(BaseEngine):
         )
         sub_step["response"]["conditions_results"] = self.response_conditions_matched(
             sub_step, response
-        )
+        )               # This is important, this is being set here. The results!

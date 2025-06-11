@@ -61,6 +61,7 @@ loaded_modules: "{0} modules loaded ..."
 loading_modules: loading all modules... it might get some time!
 loading_profiles: loading all profiles... it might get some time!
 loading_probes: loading all probes... it might take some time!
+loading_probes_udp: loading all UDP probes... it might take some time!
 loaded_probes: all probes have been loaded
 module_profile_full_information: "{0}{1}{2}: {3}"
 nettacker_report: OWASP Nettacker Report

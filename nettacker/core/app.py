@@ -26,7 +26,7 @@ from nettacker.core.messages import messages as _
 from nettacker.core.module import Module
 from nettacker.core.socks_proxy import set_socks_proxy
 from nettacker.core.utils import common as common_utils
-from nettacker.core.utils.common import wait_for_threads_to_finish
+from nettacker.core.utils.common import wait_for_threads_to_finish, extract_UDP_probes, port_to_probes_and_matches_udp
 from nettacker.database.db import find_events, remove_old_logs
 from nettacker.database.mysql import mysql_create_database, mysql_create_tables
 from nettacker.database.postgresql import postgres_create_database
@@ -190,12 +190,12 @@ class Nettacker(ArgParser):
                 targets.remove(target)
         return targets
 
-
     def load_yaml(self):
         # Read the YAML file and save it as a paramater value in arguments
         # This won't hurt anything (even though the variable will be huge and
         # will probaly consume about 15 MB of RAM) cause python can handle it
         import yaml
+
         log.info(_("loading_probes"))
         with open(Config.path.probes_file) as stream:
             data = yaml.safe_load(stream)
@@ -203,6 +203,18 @@ class Nettacker(ArgParser):
         log.info(_("loaded_probes"))
         # Its probably not ideal, but I can't see why not
 
+    def load_udp_probes(self):
+        # Creating a different function here because I don't want all the threads to
+        # do the same thing, and get the same results. I will just pass this result
+        # directly
+
+        import yaml
+        
+        log.info(_("loading_probes_udp"))
+        with open(Config.path.probes_file) as stream:
+            data = yaml.safe_load(stream)
+        self.arguments.udp_probes = extract_UDP_probes(port_to_probes_and_matches_udp(data)["probes"])
+        log.info(_("loaded_probes"))
 
     def run(self):
         """
@@ -219,8 +231,10 @@ class Nettacker(ArgParser):
         log.info(_("regrouping_targets"))
         # find total number of targets + types + expand (subdomain, IPRanges, etc)
         # optimize CPU usage
-        if self.arguments.version_scan or self.arguments.udp_scan:
+        if self.arguments.version_scan:
             self.load_yaml()
+        if self.arguments.udp_scan:
+            self.load_udp_probes()          # The user might run both so no else
         self.arguments.targets = self.expand_targets(scan_id)
         if not self.arguments.targets:
             log.info(_("no_live_service_found"))
@@ -300,8 +314,10 @@ class Nettacker(ArgParser):
         return os.EX_OK
 
     def scan_target_group(self, targets, scan_id, process_number):
+        print("i am going inside scan_target_group")
         active_threads = []
         log.verbose_event_info(_("single_process_started").format(process_number))
+        print("logged")
         total_number_of_modules = len(targets) * len(self.arguments.selected_modules)
         total_number_of_modules_counter = 1
 

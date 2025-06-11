@@ -17,6 +17,7 @@ payloads:
     steps:
       - method: tcp_connect_send_and_receive
         method_version: tcp_version_scan
+        method_udp_scan: udp_scan
         timeout: 3
         host: "{target}"
         ports:

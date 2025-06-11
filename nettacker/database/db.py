@@ -96,14 +96,18 @@ def submit_report_to_db(event):
     """
     log.verbose_info(messages("inserting_report_db"))
     session = create_connection()
-    session.add(
-        Report(
-            date=event["date"],
-            scan_unique_id=event["scan_id"],
-            report_path_filename=event["options"]["report_path_filename"],
-            options=json.dumps(event["options"]),
+    try:
+        session.add(
+            Report(
+                date=event["date"],
+                scan_unique_id=event["scan_id"],
+                report_path_filename=event["options"]["report_path_filename"],
+                options=json.dumps(event["options"]),
+            )
         )
-    )
+    except Exception as e:
+        print(f"excetion in submit_report_to_db: {e}")
+
     return send_submit_query(session)
 
 
@@ -141,18 +145,21 @@ def submit_logs_to_db(log):
     """
     if isinstance(log, dict):
         session = create_connection()
-        session.add(
-            HostsLog(
-                target=log["target"],
-                date=log["date"],
-                module_name=log["module_name"],
-                scan_unique_id=log["scan_id"],
-                port=json.dumps(log["port"]),
-                event=json.dumps(log["event"]),
-                json_event=json.dumps(log["json_event"]),
+        try:
+            session.add(
+                HostsLog(
+                    target=log["target"],
+                    date=log["date"],
+                    module_name=log["module_name"],
+                    scan_unique_id=log["scan_id"],
+                    port=json.dumps(log["port"]),
+                    event=json.dumps(log["event"]),
+                    json_event=json.dumps(log["json_event"]),
+                )
             )
-        )
-        return send_submit_query(session)
+            return send_submit_query(session)
+        except Exception as e:
+            print(f"exception in submit_logs_to_db: {e}")
     else:
         log.warn(messages("invalid_json_type_to_db").format(log))
         return False
@@ -170,19 +177,22 @@ def submit_temp_logs_to_db(log):
     """
     if isinstance(log, dict):
         session = create_connection()
-        session.add(
-            TempEvents(
-                target=log["target"],
-                date=log["date"],
-                module_name=log["module_name"],
-                scan_unique_id=log["scan_id"],
-                event_name=log["event_name"],
-                port=json.dumps(log["port"]),
-                event=json.dumps(log["event"]),
-                data=json.dumps(log["data"]),
+        try:
+            session.add(
+                TempEvents(
+                    target=log["target"],
+                    date=log["date"],
+                    module_name=log["module_name"],
+                    scan_unique_id=log["scan_id"],
+                    event_name=log["event_name"],
+                    port=json.dumps(log["port"]),
+                    event=json.dumps(log["event"]),
+                    data=json.dumps(log["data"]),
+                )
             )
-        )
-        return send_submit_query(session)
+            return send_submit_query(session)
+        except Exception as e:
+            print(f"Exception at submit_temp_logs_to_db: {e}")
     else:
         log.warn(messages("invalid_json_type_to_db").format(log))
         return False

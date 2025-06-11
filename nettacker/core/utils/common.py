@@ -14,8 +14,58 @@ from itertools import product
 
 from nettacker import logger
 
-
 log = logger.get_logger()
+
+# parsing the matches_list
+
+def create_match(
+    match_name,
+    service,
+    regex,
+    product_vendor_name,
+    version,
+    info,
+    operating_system,
+    device_type,
+    cpe_name,
+):
+    return {
+        match_name: {
+            "service": service,
+            "regex": regex,
+            "p": product_vendor_name,
+            "v": version,
+            "i": info,
+            "o": operating_system,
+            "d": device_type,
+            "cpe": cpe_name,
+        }
+    }
+
+def parse_match(match, index):
+    try:
+        match_name = f"match_{index}"
+        service, rest = match.split(" m|") if " m|" in match else match.split(" m/")
+        service = service.split(" ")[1]
+        regex, *fields = rest.split("|")
+        fields = "|".join(fields)
+
+        def extract_field(fields, prefix):
+            return fields.split(prefix)[1].split("/")[0] if prefix in fields else ""
+
+        return create_match(
+            match_name,
+            service,
+            regex,
+            extract_field(fields, " p/"),
+            extract_field(fields, " v/"),
+            extract_field(fields, " i/"),
+            extract_field(fields, " o/"),
+            extract_field(fields, " d/"),
+            extract_field(fields, " cpe:/"),
+        )
+    except Exception:
+        pass  # it probably hit a none
 
 
 def replace_dependent_response(log, response_dependent):
@@ -52,6 +102,44 @@ def reverse_and_regex_condition(regex, reverse):
         return []
 
 
+def extract_UDP_probes(probes_list):
+    """
+    Checking if UDP is there after "Probe" header
+    and if it is, then appending the bytes to the
+    list and finally returning that.
+    """
+    print("extracting_UDP_probes")
+    return [
+        bytes(probe.split("q|" if "q|" in probe else "q/")[1][:-1], encoding="utf-8")
+        for probe in probes_list
+        if "UDP" in probe.split("q|" if "q|" in probe else "q/")[0].split(" ")
+    ]
+
+
+def port_to_probes_and_matches_udp(data):
+    """
+    The main difference between the UDP one and the normal TCP one is the fact that I am calling the TCP
+    one AFTER port_scan is done and after I know all the TCP ports. That's why we were being selective there
+    with respect to the port.
+
+    Here though there is no need for each thread to search for its port number. Just use all of them.
+
+
+    Additionally, the matches in this case are all going to be empty lists. Cause UDP services don't reply!
+    """
+    results = {"probes": [], "matches": []}
+    for entry in data.get("service_logger", []):
+        # print(f"This is the entry['probe']: {entry.get('probe', [])} \n")
+        results["probes"].append(entry.get("probe", [])[0])     # Ahh, this returns a list, we need to append the strings
+        # inside here, that's why the extract_udp_probe fails
+
+        # matches_list = entry.get("regex", [])
+        # final_result = [parse_match(match, i + 1) for i, match in enumerate(matches_list)]
+        # results["matches"] = final_result
+        # Wait, is this being called by all the threads?
+    return results
+
+
 def port_to_probes_and_matches(port_number, data):
     """
     This function parses the YAML file and queries it
@@ -61,7 +149,7 @@ def port_to_probes_and_matches(port_number, data):
     input: port number (int)
     output: {"probes": [probes], "matches": [{"match_1": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}},
     {"match_2": {"service": "", "regex": "", "flag_1": "", "flag_2": ""}}]}
-    
+
     Note: It removes the probe names and gives only a list of bytes that needs to
     be sent via the tcp socket.
 
@@ -75,7 +163,7 @@ def port_to_probes_and_matches(port_number, data):
 
     print("inside port_to_probes_and_matches")
     results = {"probes": [], "matches": []}
-    
+
     for entry in data.get("service_logger", []):
         if int(entry["value"]) == port_number:
             print(f"inside this if: port_number is: {port_number}")
@@ -84,58 +172,22 @@ def port_to_probes_and_matches(port_number, data):
             matches_list = entry.get("regex", [])
             # print(f"matches_list: {matches_list}")
             break
-        else:
-            print(f"I came inside else for {entry['value']}")
-            # It doesn't have probes for ports like 3306 (mysql)
-            matches_list = []
+    # We can potentially add an optimization here, we can have a for...else block in python.
+    # The idea being that, only when I don't break out of the loop, will this block be executed.
 
-    # parsing the matches_list
-
-    def create_match(match_name, service, regex, product_vendor_name, version, info, operating_system, device_type, cpe_name):
-        return {
-            match_name: {
-                "service": service,
-                "regex": regex,
-                "p": product_vendor_name,
-                "v": version,
-                "i": info,
-                "o": operating_system,
-                "d": device_type,
-                "cpe": cpe_name
-            }
-        }
-
-    def parse_match(match, index):
-        try:
-            match_name = f"match_{index}"
-            service, rest = match.split(" m|") if " m|" in match else match.split(" m/")
-            service = service.split(" ")[1]
-            regex, *fields = rest.split("|")
-            fields = "|".join(fields)
-            
-            def extract_field(fields, prefix):
-                return fields.split(prefix)[1].split("/")[0] if prefix in fields else ""
-            
-            return create_match(
-                match_name,
-                service,
-                regex,
-                extract_field(fields, " p/"),
-                extract_field(fields, " v/"),
-                extract_field(fields, " i/"),
-                extract_field(fields, " o/"),
-                extract_field(fields, " d/"),
-                extract_field(fields, " cpe:/")
-            )
-        except Exception:
-            pass  # it probably hit a none
+    # So, earlier I was assigning matches_list as empty each time. Un-necessary overhead. Cause later I am checking
+    # if it has a value and then getting the results list. So, rather than that, I can just do that if I don't break out,
+    # that means entry["value"] != port_number (so, its not the right one) just return empty stuff. Finish it off fast.
+    else:
+        print("I came inside else")
+        # It doesn't have probes for ports like 3306 (mysql)
+        return {"probes": [], "matches": []}
 
     if matches_list:
         final_result = [parse_match(match, i + 1) for i, match in enumerate(matches_list)]
         results["matches"] = final_result
 
     return results
-
 
 
 def wait_for_threads_to_finish(threads, maximum=None, terminable=False, sub_process=False):
