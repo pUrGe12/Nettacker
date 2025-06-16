@@ -24,7 +24,7 @@ payloads:
         allow_redirects: false
         headers:
           User-Agent: "{user_agent}"
-          Host: {target}
+          Host: "{target}"
           Content-Type: application/soap+xml;charset=UTF-8
         ssl: false
         url:

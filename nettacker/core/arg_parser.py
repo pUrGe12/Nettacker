@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import yaml
 
+from nettacker import HydraConfigs
 from nettacker.config import version_info, Config
 from nettacker.core.die import die_failure, die_success
 from nettacker.core.ip import (
@@ -16,7 +17,6 @@ from nettacker.core.ip import (
     generate_ip_range,
 )
 from nettacker.core.messages import messages as _
-from nettacker.core.template import TemplateLoader
 from nettacker.core.utils import common as common_utils
 from nettacker.logger import TerminalCodes, get_logger
 
@@ -80,21 +80,21 @@ class ArgParser(ArgumentParser):
             an array of all module names
         """
         # Search for Modules
-
         module_names = {}
         for module_name in sorted(Config.path.modules_dir.glob("**/*.yaml")):
             library = str(module_name).split("/")[-1].split(".")[0]
             category = str(module_name).split("/")[-2]
             module = f"{library}_{category}"
-            contents = yaml.safe_load(TemplateLoader(module).open().split("payload:")[0])
-            module_names[module] = contents["info"] if full_details else None
 
+            contents = yaml.safe_load(
+                HydraConfigs.get_normal_config(library, category).split("payload:")[0]
+            )
+            module_names[module] = contents["info"] if full_details else None
             if len(module_names) == limit:
                 module_names["..."] = {}
                 break
         module_names = common_utils.sort_dictionary(module_names)
         module_names["all"] = {}
-
         return module_names
 
     @staticmethod

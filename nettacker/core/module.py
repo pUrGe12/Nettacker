@@ -5,10 +5,9 @@ import os
 import time
 from threading import Thread
 
-from nettacker import logger
+from nettacker import logger, HydraConfigs
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
-from nettacker.core.template import TemplateLoader
 from nettacker.core.utils.common import expand_module_steps, wait_for_threads_to_finish
 from nettacker.database.db import find_events
 
@@ -57,13 +56,11 @@ class Module:
             "ssl_expiring_certificate_scan",
         ]
 
-        contents = TemplateLoader("port_scan", {"target": ""}).load()
+        contents = HydraConfigs.get_config("port", "scan")
         self.service_discovery_signatures = list(
-            set(
-                contents["payloads"][0]["steps"][0]["response"]["conditions"]
-                .get("service", set(contents["payloads"][0]["steps"][0]["response"]["conditions"]))
-                .keys()
-            )
+            contents.payloads[0]
+            .steps[0]
+            .response.conditions.service.keys()  # by definition they are all unique
         )
 
         self.libraries = [
@@ -74,7 +71,9 @@ class Module:
         ]
 
     def load(self):
-        self.module_content = TemplateLoader(self.module_name, self.module_inputs).load()
+        *library_parts, category = self.module_name.split("_")
+        library = "_".join(library_parts)  # For something like http_vuln_scan
+        self.module_content = HydraConfigs.get_attack_config(library, category, self.module_inputs)
         if not self.skip_service_discovery and self.module_name not in self.ignored_core_modules:
             services = {}
             for service in find_events(self.target, "port_scan", self.scan_id):
@@ -101,9 +100,6 @@ class Module:
                     for step in copy.deepcopy(
                         self.module_content["payloads"][index_payload]["steps"]
                     ):
-                        step = TemplateLoader.parse(
-                            step, {"port": self.discovered_services[payload["library"]]}
-                        )
                         self.module_content["payloads"][index_payload]["steps"][index_step] = step
                         index_step += 1
                 index_payload += 1
