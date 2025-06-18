@@ -314,10 +314,8 @@ class Nettacker(ArgParser):
         return os.EX_OK
 
     def scan_target_group(self, targets, scan_id, process_number):
-        print("i am going inside scan_target_group")
         active_threads = []
         log.verbose_event_info(_("single_process_started").format(process_number))
-        print("logged")
         total_number_of_modules = len(targets) * len(self.arguments.selected_modules)
         total_number_of_modules_counter = 1
 

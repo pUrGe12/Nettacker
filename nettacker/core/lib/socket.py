@@ -106,7 +106,6 @@ def match_regex(response, regex_value_dict_list):
                 i += 2
         return []
     except Exception as e:
-        print(f"This goes wrong inside match_regex: {e}")
         return []
 
 
@@ -179,8 +178,8 @@ class SocketLibrary(BaseLibrary):
     def tcp_connect_send_and_receive(self, host, port, timeout):
         print("inside tcp_connect_send_and_receive")
         tcp_socket = create_tcp_socket(host, port, timeout)
+        print("\ncreated tcp_socket\n")
         if tcp_socket is None:
-            print("Was this the issue?")
             return None
 
         socket_connection, ssl_flag = tcp_socket
@@ -194,13 +193,11 @@ class SocketLibrary(BaseLibrary):
         # except ConnectionRefusedError:
         #     return None
         except Exception:
-            print("This is here>")
             try:
                 socket_connection.close()
                 response = b""
             except Exception:
                 response = b""
-        print("just before returning")
         return {
             "peer_name": peer_name,
             "service": socket.getservbyport(port),
@@ -218,8 +215,6 @@ class SocketLibrary(BaseLibrary):
             a null probe and tries to match that and return
         4. If none matched, it returns an empty string
         """
-        print("visited tcp_version_scan")
-
         def null_probing(host_name, port, timeout):
             """
             This is a null prober. Simply waits for the service to
@@ -232,7 +227,6 @@ class SocketLibrary(BaseLibrary):
             try:
                 socket_connection.send(b"")
                 response = socket_connection.recv(1024 * 1024 * 10)
-                print(f"got response from null probing: {response}")
             except Exception:
                 response = b""
             return response.decode(errors="ignore")
@@ -255,11 +249,9 @@ class SocketLibrary(BaseLibrary):
 
             Its better to start a new connection than reusing old ones.
             """
-            print("inside custom probing")
             matches = b""
             results = port_to_probes_and_matches(port, data)
             probes_list, regex_values_dict_list = results["probes"], results["matches"]
-            print("This is the regex_values_dict_list: {}".format(regex_values_dict_list))
             raw_probes = extract_probes(probes_list)
 
             tcp_socket = create_tcp_socket(host_name, port, timeout)
@@ -273,7 +265,6 @@ class SocketLibrary(BaseLibrary):
                         socket_connection.send(probe)
                         response = socket_connection.recv(1024 * 1024 * 10)
                         if response:
-                            print(f"got resonse from custom probing: {response}")
                             matches = match_regex(response, regex_values_dict_list)
 
                     except (BrokenPipeError, ConnectionResetError):
@@ -289,13 +280,11 @@ class SocketLibrary(BaseLibrary):
                                 matches = match_regex(response, regex_values_dict_list)
                         except Exception:
                             matches = ""
-                            print("Shouldn't come here")
                     except Exception as e:
                         print(f"This goes wrong in here: {e}")
             except Exception:
                 matches = ""
 
-            print(f"This is the match: {matches}")
             return matches
 
         host_name = peer_name[0]
@@ -457,7 +446,6 @@ class SocketEngine(BaseEngine):
     library = SocketLibrary
 
     def response_conditions_matched(self, sub_step, response):
-        print(f"This is the sub_step: {sub_step} \n\n")
         conditions = sub_step["response"]["conditions"].get(
             "service", sub_step["response"]["conditions"]
         )

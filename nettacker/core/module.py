@@ -134,6 +134,10 @@ class Module:
             self.module_content["payloads"][index]["steps"] = steps
 
     def start(self):
+        udp_scan_flag = False
+        if self.module_inputs.get("udp_scan", False):
+            udp_scan_flag = True
+
         active_threads = []
 
         # counting total number of requests
@@ -153,10 +157,11 @@ class Module:
                 f"{library.capitalize()}Engine",
             )()
 
+            # I think here we can run the normal tcp version, then a UDP version
             for step in payload["steps"]:
                 for sub_step in step:
                     thread = Thread(
-                        target=engine.run,
+                        target=engine.run_tcp_scan,
                         args=(
                             sub_step,
                             self.module_name,
@@ -193,3 +198,71 @@ class Module:
                     )
 
         wait_for_threads_to_finish(active_threads, maximum=None, terminable=True)
+
+        # So, once all TCP scanning is done. Start this.
+
+        
+        print("\n\n\n This is done! TCP done! \n\n\n")
+        time.sleep(10)
+
+        if udp_scan_flag:
+            print("\n\nstarting UCP scanning\n\n")
+            active_threads = []
+
+            total_number_of_requests = 0
+            for payload in self.module_content["payloads"]:
+                if payload["library"] not in self.libraries:
+                    log.warn(_("library_not_supported").format(payload["library"]))
+                    return None
+                for step in payload["steps"]:
+                    total_number_of_requests += len(step)
+
+            request_number_counter = 0
+            for payload in self.module_content["payloads"]:
+                library = payload["library"]
+                engine = getattr(
+                    importlib.import_module(f"nettacker.core.lib.{library.lower()}"),
+                    f"{library.capitalize()}Engine",
+                )()
+
+                # I think here we can run the normal tcp version, then a UDP version
+                for step in payload["steps"]:
+                    for sub_step in step:
+                        thread = Thread(
+                            target=engine.run_udp_scan,
+                            args=(
+                                sub_step,
+                                self.module_name,
+                                self.target,
+                                self.scan_id,
+                                self.module_inputs,
+                                self.process_number,
+                                self.module_thread_number,
+                                self.total_module_thread_number,
+                                request_number_counter,
+                                total_number_of_requests,
+                            ),
+                        )
+                        thread.name = f"{self.target} -> {self.module_name} -> {sub_step}"
+                        request_number_counter += 1
+                        log.verbose_event_info(
+                            _("sending_module_request").format(
+                                self.process_number,
+                                self.module_name,
+                                self.target,
+                                self.module_thread_number,
+                                self.total_module_thread_number,
+                                request_number_counter,
+                                total_number_of_requests,
+                            )
+                        )
+                        thread.start()
+                        time.sleep(self.module_inputs["time_sleep_between_requests"])
+                        active_threads.append(thread)
+                        wait_for_threads_to_finish(
+                            active_threads,
+                            maximum=self.module_inputs["thread_per_host"],
+                            terminable=True,
+                        )
+
+            wait_for_threads_to_finish(active_threads, maximum=None, terminable=True)
