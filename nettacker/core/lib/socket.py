@@ -137,7 +137,7 @@ class SocketLibrary(BaseLibrary):
         """
         print("inside udp_scan")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        peer_name = sock.getpeername()
+        peer_name = f"{host}:{port}"
         sock.settimeout(timeout)
         print(f"trying: {host}:{port}")
 
