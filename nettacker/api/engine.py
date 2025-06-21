@@ -6,7 +6,6 @@ import random
 import string
 import time
 
-import psutil
 from flask import Flask, jsonify
 from flask import request as flask_request
 from flask import render_template, abort, Response, make_response
@@ -31,7 +30,6 @@ from nettacker.core.graph import create_compare_report
 from nettacker.core.messages import messages as _
 from nettacker.core.tasks import new_scan_task
 from nettacker.core.utils.common import now, generate_compare_filepath
-from nettacker.core.utils.huey_config import huey
 from nettacker.database.db import (
     create_connection,
     get_logs_by_scan_id,
@@ -596,31 +594,16 @@ def start_api_server(options):
         options: all options
     """
     # Starting the API
+
     log.write_to_api_console(_("API_key").format(options.api_port, options.api_access_key))
     p = multiprocessing.Process(target=start_api_subprocess, args=(options,))
     p.start()
     # Sometimes it's take much time to terminate flask with CTRL+C
     # So It's better to use KeyboardInterrupt to terminate!
-    while p.is_alive():
+    while len(multiprocessing.active_children()) != 0:
         try:
             time.sleep(0.3)
         except KeyboardInterrupt:
-            p.terminate()
-            p.join(timeout=5)
-            try:
-                # Close huey processes here as well
-                log.write_to_api_console("[+] Flushing Huey queue\n")
-                huey.flush()
-            except Exception:
-                pass  # This means it couldn't flush
-
-            log.write_to_api_console("[+] Terminating Huey processes\n")
-            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
-                try:
-                    cmdline = proc.info.get("cmdline")
-                    if cmdline and any("nettacker.core.tasks.huey" in cmd for cmd in cmdline):
-                        proc.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    # This means it already died
-                    continue
+            for process in multiprocessing.active_children():
+                process.terminate()
             break
