@@ -1,10 +1,6 @@
 from types import SimpleNamespace
 
-from nettacker import logger
 from nettacker.core.utils.huey_config import huey
-
-log = logger.get_logger()
-
 
 @huey.task(retries=3, retry_delay=2)
 def new_scan_task(form_values):

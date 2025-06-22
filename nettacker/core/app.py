@@ -142,7 +142,7 @@ class Nettacker(ArgParser):
                 targets.append(target)
         self.arguments.targets = targets
         self.arguments.url_base_path = base_path
-
+        
         # subdomain_scan
         if self.arguments.scan_subdomains:
             selected_modules = self.arguments.selected_modules
@@ -202,7 +202,8 @@ class Nettacker(ArgParser):
         Returns:
             True when it ends
         """
-        scan_id = common_utils.generate_random_token(32)
+        print(f"This is self.arguments: {self.arguments}")
+        scan_id = vars(self.arguments).get("scan_id", common_utils.generate_random_token(32))
         log.info("ScanID: {0}".format(scan_id))
         log.info(_("regrouping_targets"))
         # find total number of targets + types + expand (subdomain, IPRanges, etc)

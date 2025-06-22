@@ -320,12 +320,41 @@ $(document).ready(function () {
     }
   });
 
+  function generateRandomToken(length = 32) {
+  const characters = "abcdefghijklmnopqrstuvwxyz";
+  let token = "";
+  for (let i = 0; i < length; i++) {
+    token += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+  return token;
+  }
+
   // submit new scan
   $("#submit_new_scan").click(function () {
     // display processing text
-    $("#processing_request").removeClass("hidden");
-    document.getElementById("processing_msg").innerHTML = "Processing...";
+    var scan_id = generateRandomToken(32);
+    const msgBox = document.createElement("p");
+    msgBox.className = "alert alert-info";
+    msgBox.innerHTML = `
+      Processing scan: <code>${scan_id}</code>
+      <span id="progress-${scan_id}" style="margin-left: 10px;">0%</span>
+    `;
 
+    // To display the percentage result, poll this every 3s
+    setInterval(() => {
+      fetch(`/get_update_endpoint/${scan_id}`)
+        .then(res => res.json())
+        .then(data => {
+          const percent = data.progress;
+          document.getElementById(`progress-${scan_id}`).innerText = `${percent}%`;
+        })
+        .catch(err => {
+          console.error(`Error updating progress for ${scan_id}:`, err);
+        });
+    }, 3000);
+
+
+    document.getElementById("processing_requests_container").appendChild(msgBox);
     // set variables
     // check ranges
     if (document.getElementById("scan_ip_range").checked) {
@@ -373,9 +402,9 @@ $(document).ready(function () {
     $("#graph_name input:checked").each(function () {
       graph_name = this.id;
     });
-
     // build post data
     var tmp_data = {
+      scan_id: scan_id,
       targets: $("#targets").val(),
       profiles: profiles,
       selected_modules: selected_modules,
