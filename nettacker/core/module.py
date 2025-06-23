@@ -10,7 +10,8 @@ from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.template import TemplateLoader
 from nettacker.core.utils.common import expand_module_steps, wait_for_threads_to_finish
-from nettacker.database.db import find_events
+from nettacker.database.db import find_events, set_scan_total
+
 
 log = logger.get_logger()
 
@@ -144,6 +145,8 @@ class Module:
                 return None
             for step in payload["steps"]:
                 total_number_of_requests += len(step)
+        
+        set_scan_total(self.scan_id, total_number_of_requests)
 
         request_number_counter = 0
         for payload in self.module_content["payloads"]:

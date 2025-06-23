@@ -10,7 +10,7 @@ import yaml
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.utils.common import merge_logs_to_list
-from nettacker.database.db import find_temp_events, submit_temp_logs_to_db, submit_logs_to_db
+from nettacker.database.db import find_temp_events, submit_temp_logs_to_db, submit_logs_to_db, set_scan_done
 from nettacker.logger import get_logger, TerminalCodes
 
 log = get_logger()
@@ -296,7 +296,7 @@ class BaseEngine(ABC):
 
         self.apply_extra_data(sub_step, response)
 
-        return self.process_conditions(
+        result = self.process_conditions(
             sub_step,
             module_name,
             target,
@@ -309,3 +309,6 @@ class BaseEngine(ABC):
             request_number_counter,
             total_number_of_requests,
         )
+
+        set_scan_done(scan_id, request_number_counter + 1)
+        return result

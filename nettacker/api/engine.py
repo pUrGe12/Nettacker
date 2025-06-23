@@ -42,8 +42,10 @@ from nettacker.database.db import (
     logs_to_report_json,
     search_logs,
     logs_to_report_html,
+    get_scan_progress_percent,
 )
 from nettacker.database.models import Report
+
 
 # Monkey-patching the Server header to avoid exposing the actual version
 WSGIRequestHandler.version_string = lambda self: "API"
@@ -58,9 +60,6 @@ log = logger.get_logger()
 app = Flask(__name__, template_folder=str(Config.path.web_static_dir))
 app.config.from_object(__name__)
 
-# this stores as key the scan_id and as value the progress percentage for that scan_id
-scan_progress = {}
-# Might need to wrap this in a lock (probably)
 
 nettacker_path_config = Config.path
 nettacker_application_config = Config.settings.as_dict()
@@ -270,16 +269,16 @@ def new_scan():
 
     form_values["scan_id"] = str(form_values["scan_id"])             # For any web content, we set the scan_id before hand and always use that in the future
 
-    scan_progress[form_values["scan_id"]] = 0  # initialize to 0%
+    # scan_progress[form_values["scan_id"]] = 0  # initialize to 0%
 
-    def simulate_scan_progress(scan_id):
-        for i in range(1, 101):
-            time.sleep(3)  # wait 3 seconds
-            scan_progress[scan_id] = i
-            if i == 100:
-                break
+    # def simulate_scan_progress(scan_id):
+    #     for i in range(1, 101):
+    #         time.sleep(3)  # wait 3 seconds
+    #         scan_progress[scan_id] = i
+    #         if i == 100:
+    #             break
 
-    threading.Thread(target=simulate_scan_progress, args=(form_values["scan_id"],)).start()
+    # threading.Thread(target=simulate_scan_progress, args=(form_values["scan_id"],)).start()
     for key in nettacker_application_config:
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
@@ -291,7 +290,7 @@ def new_scan():
 
 @app.route("/get_update_endpoint/<scan_id>")
 def get_progress(scan_id):
-    percent = scan_progress.get(scan_id, 0)
+    percent = get_scan_progress_percent(scan_id)
     return {"progress": percent}
 
 
