@@ -280,11 +280,10 @@ def new_scan():
                 break
 
     threading.Thread(target=simulate_scan_progress, args=(form_values["scan_id"],)).start()
-
-    print("\n\n This is the ID i am setting: {}\n\n".format(form_values['scan_id']))
     for key in nettacker_application_config:
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
+    
     task_result = new_scan_task(form_values)
 
     return jsonify(task_result), 200

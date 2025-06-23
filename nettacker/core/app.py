@@ -202,7 +202,6 @@ class Nettacker(ArgParser):
         Returns:
             True when it ends
         """
-        print(f"This is self.arguments: {self.arguments}")
         scan_id = vars(self.arguments).get("scan_id", common_utils.generate_random_token(32))
         log.info("ScanID: {0}".format(scan_id))
         log.info(_("regrouping_targets"))

@@ -8,9 +8,9 @@ def new_scan_task(form_values):
 
     form_values["targets"] = [form_values["targets"]]
     nettacker_app = Nettacker(api_arguments=SimpleNamespace(**form_values))
-    app_arguments = SimpleNamespace(**form_values)
+    app_arguments = nettacker_app.arguments
 
-    if not isinstance(app_arguments.selected_modules, list):
+    if not isinstance(app_arguments.selected_modules, list) and (app_arguments.selected_modules is not None):
         app_arguments.selected_modules = app_arguments.selected_modules.split(",")
     nettacker_app.arguments = app_arguments
     nettacker_app.run()
