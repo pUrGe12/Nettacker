@@ -10,7 +10,8 @@ from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.template import TemplateLoader
 from nettacker.core.utils.common import expand_module_steps, wait_for_threads_to_finish
-from nettacker.database.db import find_events, set_scan_total
+from nettacker.database.db import find_events
+from nettacker import scan_progress, total_targets_selected
 
 
 log = logger.get_logger()
@@ -145,8 +146,10 @@ class Module:
                 return None
             for step in payload["steps"]:
                 total_number_of_requests += len(step)
-        
-        set_scan_total(self.scan_id, total_number_of_requests)
+
+        num_selected_targets = total_targets_selected.value
+        print(f"This was the num_selected_tagets: {num_selected_targets}")
+        scan_progress[self.scan_id] = {"current": 0, "total": total_number_of_requests * num_selected_targets}
 
         request_number_counter = 0
         for payload in self.module_content["payloads"]:

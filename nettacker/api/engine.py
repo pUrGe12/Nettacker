@@ -42,9 +42,9 @@ from nettacker.database.db import (
     logs_to_report_json,
     search_logs,
     logs_to_report_html,
-    get_scan_progress_percent,
 )
 from nettacker.database.models import Report
+from nettacker import scan_progress
 
 
 # Monkey-patching the Server header to avoid exposing the actual version
@@ -269,16 +269,6 @@ def new_scan():
 
     form_values["scan_id"] = str(form_values["scan_id"])             # For any web content, we set the scan_id before hand and always use that in the future
 
-    # scan_progress[form_values["scan_id"]] = 0  # initialize to 0%
-
-    # def simulate_scan_progress(scan_id):
-    #     for i in range(1, 101):
-    #         time.sleep(3)  # wait 3 seconds
-    #         scan_progress[scan_id] = i
-    #         if i == 100:
-    #             break
-
-    # threading.Thread(target=simulate_scan_progress, args=(form_values["scan_id"],)).start()
     for key in nettacker_application_config:
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
@@ -290,8 +280,13 @@ def new_scan():
 
 @app.route("/get_update_endpoint/<scan_id>")
 def get_progress(scan_id):
-    percent = get_scan_progress_percent(scan_id)
-    return {"progress": percent}
+    if scan_id not in scan_progress:
+        return {"progress": 0}
+
+    current = scan_progress[scan_id]["current"]
+    total = scan_progress[scan_id]["total"]
+    percent = (current / total) * 100 if total else 0
+    return {"progress": round(percent, 2)}
 
 
 @app.route("/compare/scans", methods=["POST"])
@@ -608,7 +603,7 @@ def start_api_subprocess(options):
                 host=options.api_hostname,
                 port=options.api_port,
                 debug=options.api_debug_mode,
-                # ssl_context="adhoc",              # commenting this for codespaces
+                ssl_context="adhoc",              # commenting this for codespaces
                 threaded=True,
             )
     except Exception as e:

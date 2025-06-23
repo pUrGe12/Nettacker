@@ -8,7 +8,7 @@ from nettacker import logger
 from nettacker.api.helpers import structure
 from nettacker.config import Config
 from nettacker.core.messages import messages
-from nettacker.database.models import HostsLog, Report, TempEvents, ScanProgress
+from nettacker.database.models import HostsLog, Report, TempEvents
 
 config = Config()
 log = logger.get_logger()
@@ -549,30 +549,3 @@ def search_logs(page, query):
     if len(selected) == 0:
         return structure(status="finished", msg="No more search results")
     return selected
-
-
-def set_scan_total(scan_id, total):
-    session = create_connection()
-    existing = session.query(ScanProgress).filter_by(scan_id=scan_id).first()
-    if existing:
-        existing.total = total
-    else:
-        session.add(ScanProgress(scan_id=scan_id, total=total, done=0))
-    return send_submit_query(session)
-
-
-def set_scan_done(scan_id, done):
-    session = create_connection()
-    progress = session.query(ScanProgress).filter_by(scan_id=scan_id).first()
-    if progress:
-        progress.done = done
-        return send_submit_query(session)
-    return False
-
-
-def get_scan_progress_percent(scan_id):
-    session = create_connection()
-    progress = session.query(ScanProgress).filter_by(scan_id=scan_id).first()
-    if not progress:
-        return 0
-    return int((progress.done / progress.total) * 100)

@@ -32,6 +32,7 @@ from nettacker.database.mysql import mysql_create_database, mysql_create_tables
 from nettacker.database.postgresql import postgres_create_database
 from nettacker.database.sqlite import sqlite_create_tables
 from nettacker.logger import TerminalCodes
+from nettacker import total_targets_selected
 
 log = logger.get_logger()
 
@@ -245,6 +246,8 @@ class Nettacker(ArgParser):
             target_groups.remove([])
 
         log.info(_("start_multi_process").format(len(self.arguments.targets), len(target_groups)))
+        total_targets_selected.value = len(self.arguments.targets)
+
         active_processes = []
         for t_id, target_groups in enumerate(target_groups):
             process = multiprocess.Process(

@@ -98,13 +98,3 @@ class HostsLog(Base):
             self.event,
             self.json_event,
         )
-
-class ScanProgress(Base):
-    __tablename__ = "scan_progress"
-
-    scan_id = Column(Text, primary_key=True)
-    done = Column(Integer, default=0)
-    total = Column(Integer, default=1)
-
-    def __repr__(self):
-        return f"<ScanProgress(scan_id={self.scan_id}, done={self.done}, total={self.total})>"

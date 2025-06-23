@@ -10,8 +10,9 @@ import yaml
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.utils.common import merge_logs_to_list
-from nettacker.database.db import find_temp_events, submit_temp_logs_to_db, submit_logs_to_db, set_scan_done
+from nettacker.database.db import find_temp_events, submit_temp_logs_to_db, submit_logs_to_db
 from nettacker.logger import get_logger, TerminalCodes
+from nettacker import scan_progress
 
 log = get_logger()
 
@@ -310,5 +311,11 @@ class BaseEngine(ABC):
             total_number_of_requests,
         )
 
-        set_scan_done(scan_id, request_number_counter + 1)
+        if scan_id in scan_progress:
+            # Had to do it this way because I can't edit the inner dict in place cause its a normal dict and its not shraed across processes probably
+            scan_progress[scan_id] = {
+                "current": max(scan_progress[scan_id]["current"], request_number_counter + 1),
+                "total": scan_progress[scan_id]["total"],
+            }
+
         return result
