@@ -7,7 +7,7 @@ from threading import Thread
 
 import multiprocess
 
-from nettacker import logger
+from nettacker import logger, total_targets_selected
 from nettacker.config import Config, version_info
 from nettacker.core.arg_parser import ArgParser
 from nettacker.core.die import die_failure
@@ -32,7 +32,6 @@ from nettacker.database.mysql import mysql_create_database, mysql_create_tables
 from nettacker.database.postgresql import postgres_create_database
 from nettacker.database.sqlite import sqlite_create_tables
 from nettacker.logger import TerminalCodes
-from nettacker import total_targets_selected
 
 log = logger.get_logger()
 
@@ -143,7 +142,7 @@ class Nettacker(ArgParser):
                 targets.append(target)
         self.arguments.targets = targets
         self.arguments.url_base_path = base_path
-        
+
         # subdomain_scan
         if self.arguments.scan_subdomains:
             selected_modules = self.arguments.selected_modules
