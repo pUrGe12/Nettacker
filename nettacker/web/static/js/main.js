@@ -338,19 +338,26 @@ $(document).ready(function () {
     msgBox.innerHTML = `
       Processing scan: <code>${scan_id}</code>
       <span id="progress-${scan_id}" style="margin-left: 10px;">0%</span>
+      <span id="module-${scan_id}" style="margin-left: 10px;"></span>
+      <span id="target-${scan_id}" style="margin-left: 10px;"></span>
     `;
 
     // To display the percentage result, poll this every 3s
     setInterval(() => {
-      fetch(`/get_update_endpoint/${scan_id}`)
-        .then(res => res.json())
-        .then(data => {
-          const percent = data.progress;
-          document.getElementById(`progress-${scan_id}`).innerText = `${percent}%`;
-        })
-        .catch(err => {
-          console.error(`Error updating progress for ${scan_id}:`, err);
-        });
+    fetch(`/get_update_endpoint/${scan_id}`)
+      .then(res => res.json())
+      .then(data => {
+        const percent = data.progress;
+        const module = data.module;
+        const target = data.target;
+
+        document.getElementById(`progress-${scan_id}`).innerText = `${percent}%`;
+        document.getElementById(`module-${scan_id}`).innerText = `Module: ${module}`;
+        document.getElementById(`target-${scan_id}`).innerText = `Target: ${target}`;
+      })
+      .catch(err => {
+        console.error(`Error updating progress for ${scan_id}:`, err);
+      });
     }, 3000);
 
 

@@ -7,7 +7,7 @@ from threading import Thread
 
 import multiprocess
 
-from nettacker import logger, total_targets_selected
+from nettacker import logger
 from nettacker.config import Config, version_info
 from nettacker.core.arg_parser import ArgParser
 from nettacker.core.die import die_failure
@@ -245,8 +245,7 @@ class Nettacker(ArgParser):
             target_groups.remove([])
 
         log.info(_("start_multi_process").format(len(self.arguments.targets), len(target_groups)))
-        total_targets_selected.value = len(self.arguments.targets)
-
+        
         active_processes = []
         for t_id, target_groups in enumerate(target_groups):
             process = multiprocess.Process(
@@ -278,6 +277,7 @@ class Nettacker(ArgParser):
             thread_number,
             total_number_threads,
         )
+
         module.load()
         module.generate_loops()
         module.sort_loops()

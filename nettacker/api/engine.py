@@ -284,8 +284,13 @@ def get_progress(scan_id):
 
     current = scan_progress[scan_id]["current"]
     total = scan_progress[scan_id]["total"]
+    target_being_scanned = scan_progress[scan_id]["target"]
+    module_being_used = scan_progress[scan_id]["module"]
     percent = (current / total) * 100 if total else 0
-    return {"progress": round(percent, 2)}
+    return {"progress": round(percent, 2),
+        "module": module_being_used,
+        "target": target_being_scanned,
+        }
 
 
 @app.route("/compare/scans", methods=["POST"])

@@ -314,8 +314,10 @@ class BaseEngine(ABC):
         if scan_id in scan_progress:
             # Had to do it this way because I can't edit the inner dict in place cause its a normal dict and its not shraed across processes probably
             scan_progress[scan_id] = {
-                "current": max(scan_progress[scan_id]["current"], request_number_counter + 1),
-                "total": scan_progress[scan_id]["total"],
+                "current": request_number_counter + 1,
+                "total": total_number_of_requests,
+                "target": target,
+                "module": module_name
             }
 
         return result

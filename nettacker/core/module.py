@@ -5,7 +5,7 @@ import os
 import time
 from threading import Thread
 
-from nettacker import logger, scan_progress, total_targets_selected
+from nettacker import logger, scan_progress
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.template import TemplateLoader
@@ -145,11 +145,15 @@ class Module:
             for step in payload["steps"]:
                 total_number_of_requests += len(step)
 
-        num_selected_targets = total_targets_selected.value
-        print(f"This was the num_selected_tagets: {num_selected_targets}")
+        current_val = 0
+        if self.module_inputs["thread_per_host"] > total_number_of_requests:
+            current_val = total_number_of_requests
+
         scan_progress[self.scan_id] = {
-            "current": 0,
-            "total": total_number_of_requests * num_selected_targets,
+            "current": current_val,
+            "total": total_number_of_requests,
+            "target": self.target,
+            "module": self.module_name
         }
 
         request_number_counter = 0
