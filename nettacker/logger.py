@@ -55,14 +55,15 @@ class Logger:
         Returns:
             None
         """
-        self.log(
-            TerminalCodes.YELLOW.value
-            + "[{0}][+] ".format(time.now())
-            + TerminalCodes.GREEN.value
-            + content
-            + TerminalCodes.RESET.value
-            + "\n",
-        )
+        if not self.run_from_api:
+            self.log(
+                TerminalCodes.YELLOW.value
+                + "[{0}][+] ".format(time.now())
+                + TerminalCodes.GREEN.value
+                + content
+                + TerminalCodes.RESET.value
+                + "\n",
+            )
 
     def verbose_event_info(self, content):
         """
@@ -75,8 +76,9 @@ class Logger:
         Returns:
             None
         """
-        if self.verbose_mode_is_enabled or self.event_verbose_mode_is_enabled:
-            # we want it to show logs even in case of an API server
+        if not self.run_from_api and (
+            self.verbose_mode_is_enabled or self.event_verbose_mode_is_enabled
+        ):  # prevent to stdout if run from API
             self.log(
                 TerminalCodes.YELLOW.value
                 + "[{0}][+] ".format(time.now())
@@ -110,14 +112,15 @@ class Logger:
         Returns:
             None
         """
-        self.log(
-            TerminalCodes.RED.value
-            + "[{0}][+++] ".format(time.now())
-            + TerminalCodes.CYAN.value
-            + content
-            + TerminalCodes.RESET.value
-            + "\n",
-        )
+        if not self.run_from_api:
+            self.log(
+                TerminalCodes.RED.value
+                + "[{0}][+++] ".format(time.now())
+                + TerminalCodes.CYAN.value
+                + content
+                + TerminalCodes.RESET.value
+                + "\n",
+            )
 
     def verbose_info(self, content):
         """
@@ -150,14 +153,15 @@ class Logger:
         Returns:
             the message in warn structure - None
         """
-        self.log(
-            TerminalCodes.BLUE.value
-            + "[{0}][!] ".format(time.now())
-            + TerminalCodes.YELLOW.value
-            + content
-            + TerminalCodes.RESET.value
-            + "\n",
-        )
+        if not self.run_from_api:
+            self.log(
+                TerminalCodes.BLUE.value
+                + "[{0}][!] ".format(time.now())
+                + TerminalCodes.YELLOW.value
+                + content
+                + TerminalCodes.RESET.value
+                + "\n",
+            )
 
     def error(self, content):
         """
