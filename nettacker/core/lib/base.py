@@ -317,7 +317,7 @@ class BaseEngine(ABC):
                 "current": request_number_counter + 1,
                 "total": total_number_of_requests,
                 "target": target,
-                "module": module_name
+                "module": module_name,
             }
 
         return result

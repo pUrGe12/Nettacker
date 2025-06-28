@@ -245,7 +245,7 @@ class Nettacker(ArgParser):
             target_groups.remove([])
 
         log.info(_("start_multi_process").format(len(self.arguments.targets), len(target_groups)))
-        
+
         active_processes = []
         for t_id, target_groups in enumerate(target_groups):
             process = multiprocess.Process(

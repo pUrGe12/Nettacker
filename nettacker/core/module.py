@@ -153,7 +153,7 @@ class Module:
             "current": current_val,
             "total": total_number_of_requests,
             "target": self.target,
-            "module": self.module_name
+            "module": self.module_name,
         }
 
         request_number_counter = 0
