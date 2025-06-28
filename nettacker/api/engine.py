@@ -277,7 +277,7 @@ def new_scan():
     return jsonify(task_result), 200
 
 
-@app.route("/get_update_endpoint/<scan_id>")
+@app.route("/get_scan_progress/<scan_id>")
 def get_progress(scan_id):
     if scan_id not in scan_progress:
         return {"progress": 0}
@@ -287,10 +287,20 @@ def get_progress(scan_id):
     target_being_scanned = scan_progress[scan_id]["target"]
     module_being_used = scan_progress[scan_id]["module"]
     percent = (current / total) * 100 if total else 0
-    return {"progress": round(percent, 2),
+    return jsonify({"progress": round(percent, 2),
         "module": module_being_used,
         "target": target_being_scanned,
-        }
+        "scan_id": scan_id,
+        })
+
+
+@app.route("/get_running_scans", methods=["GET"])
+def get_running_scans():
+    """
+    scan_progress is the dictionary that holds all the running scan_ids and their progress
+    in itself. So, this should suffice.
+    """
+    return jsonify(scan_progress)
 
 
 @app.route("/compare/scans", methods=["POST"])

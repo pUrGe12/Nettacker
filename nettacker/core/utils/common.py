@@ -23,7 +23,7 @@ class RouteFilter(std_logging.Filter):
     def filter(self, record):
         # This is the actual log line like: "GET /get_update_endpoint/abcd HTTP/1.1"
         msg = record.getMessage()
-        return "/get_update_endpoint/" not in msg  # suppress only this route
+        return "/get_scan_progress/" not in msg  # suppress only this route
 
 
 def replace_dependent_response(log, response_dependent):

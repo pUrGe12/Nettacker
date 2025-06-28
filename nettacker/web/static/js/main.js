@@ -344,7 +344,7 @@ $(document).ready(function () {
 
     // To display the percentage result, poll this every 3s
     setInterval(() => {
-    fetch(`/get_update_endpoint/${scan_id}`)
+    fetch(`/get_scan_progress/${scan_id}`)
       .then(res => res.json())
       .then(data => {
         const percent = data.progress;
