@@ -200,13 +200,12 @@ class Module:
         wait_for_threads_to_finish(active_threads, maximum=None, terminable=True)
 
         # So, once all TCP scanning is done. Start this.
-
-        
-        print("\n\n\n This is done! TCP done! \n\n\n")
-        time.sleep(10)
+        # Here I should add a log, and I should plan for verbose info on UDP scanning
+        log.info("TCP port scanning finished")
+        time.sleep(2)       # Todo, remove this debbuging statement
 
         if udp_scan_flag:
-            print("\n\nstarting UCP scanning\n\n")
+            log.info("Starting UDP scan")
             active_threads = []
 
             total_number_of_requests = 0

@@ -10,6 +10,7 @@ import ssl
 import struct
 import time
 import threading 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from nettacker.config import Config
 from nettacker.core.lib.base import BaseEngine, BaseLibrary
@@ -108,6 +109,27 @@ def match_regex(response, regex_value_dict_list):
     except Exception as e:
         return []
 
+def _send_udp_probe(self, host, port, probe, timeout):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        sock.sendto(probe, (host, port))
+        response, _ = sock.recvfrom(1024)
+        if response:
+            print(f"we did hit something folks!: {response}")
+        sock.close()
+        return response if response else ""
+    except socket.timeout():
+        print(f"No response from {host}:{port} after {timeout} seconds")
+        response = ""
+    except Exception as e:
+        print(f"\n\nsomething else went wrong: {e}\n\n")
+        try:
+            sock.close()
+        except Exception:
+            pass
+        return ""
+
 
 class SocketLibrary(BaseLibrary):
     def tcp_connect_only(self, host, port, timeout):
@@ -134,7 +156,6 @@ class SocketLibrary(BaseLibrary):
         It checks multiple ports parallely and returns a
         list of those running a UDP service
         """
-        print("inside udp_scan")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         peer_name = f"{host}:{port}"
         sock.settimeout(timeout)
@@ -175,10 +196,26 @@ class SocketLibrary(BaseLibrary):
 
         # Note that we aren't returning anything as of yet.
 
+    # def udp_scan(self, host, port, timeout, udp_probes):
+    #     print("inside udp_scan")
+    #     responses = []
+    #     max_workers = min(len(udp_probes), 20)  # limit thread count
+
+    #     with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    #         future_to_probe = {
+    #             executor.submit(_send_udp_probe, host, port, probe, timeout): probe
+    #             for probe in udp_probes
+    #         }
+
+    #         for future in as_completed(future_to_probe):
+    #             response = future.result()
+    #             if response:
+    #                 responses.append(response)
+
+    #     print(responses)
+
     def tcp_connect_send_and_receive(self, host, port, timeout):
-        print("inside tcp_connect_send_and_receive")
         tcp_socket = create_tcp_socket(host, port, timeout)
-        print("\ncreated tcp_socket\n")
         if tcp_socket is None:
             return None
 
@@ -504,7 +541,7 @@ class SocketEngine(BaseEngine):
             return response
 
         if sub_step["method_udp_scan"] == "udp_scan":  # Will only be true for port scans
-            print("yeah we can do shit here")
+            print("yeah we can sdo shit here")
         return []
 
     def apply_extra_data(self, sub_step, response):

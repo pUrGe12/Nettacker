@@ -382,7 +382,6 @@ class BaseEngine(ABC):
                 udp_port_scanner = getattr(self.library(), backup_udp_scan)
                 sub_step["udp_probes"] = options["udp_probes"]
                 response = udp_port_scanner(**sub_step)
-                # This is directly printing
                 del sub_step["udp_probes"]
             except Exception as e:
                 response = []
