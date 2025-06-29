@@ -540,8 +540,8 @@ class SocketEngine(BaseEngine):
         if sub_step["method"] == "socket_icmp":
             return response
 
-        if sub_step["method_udp_scan"] == "udp_scan":  # Will only be true for port scans
-            print("yeah we can sdo shit here")
+        # if sub_step["method_udp_scan"] == "udp_scan":  # Will only be true for port scans
+        #     print("yeah we can sdo shit here")
         return []
 
     def apply_extra_data(self, sub_step, response):
