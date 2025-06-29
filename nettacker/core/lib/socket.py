@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import asyncio
 import copy
 import logging
 import os
@@ -24,27 +24,23 @@ from nettacker.core.utils.common import (
 log = logging.getLogger(__name__)
 
 
-def create_tcp_socket(host, port, timeout):
+async def async_create_tcp_socket(host, port, timeout):
+    ssl_context = ssl.create_default_context()
     try:
-        socket_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        socket_connection.settimeout(timeout)
-        socket_connection.connect((host, port))
-        ssl_flag = False
-    except ConnectionRefusedError:
-        return None
-
-    try:
-        socket_connection = ssl.wrap_socket(socket_connection)
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port, ssl=ssl_context),
+            timeout = timeout,)
         ssl_flag = True
-    except Exception:
-        socket_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        socket_connection.settimeout(timeout)
-        socket_connection.connect((host, port))
-    # finally:
-    #     socket_connection.shutdown()
+        return writer, reader, ssl_flag
+    except (ssl.SSLError, ConnectionRefusedError, asyncio.TimeoutError, OSError):
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout=timeout
+            )
+            ssl_flag = False
 
-    return socket_connection, ssl_flag
-
+            return writer, reader, ssl_flag
+        except Exception:
+            return None
 
 def extract_probes(probes_list):
     """
@@ -132,61 +128,86 @@ def _send_udp_probe(self, host, port, probe, timeout):
 
 
 class SocketLibrary(BaseLibrary):
-    def tcp_connect_only(self, host, port, timeout):
-        tcp_socket = create_tcp_socket(host, port, timeout)
+    async def tcp_connect_only(self, host, port, timeout):
+        tcp_socket = await async_create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
             return None
 
-        socket_connection, ssl_flag = tcp_socket
-        peer_name = socket_connection.getpeername()
-        socket_connection.close()
+        writer, reader, ssl_flag = tcp_socket
+        peer_name = writer.get_extra_info("peername")
+        writer.close()
+        await writer.wait_closed()
+
         return {
             "peer_name": peer_name,
             "service": socket.getservbyport(int(port)),
             "ssl_flag": ssl_flag,
         }
 
-    def udp_scan(self, host, port, timeout, udp_probes):
-        """
-        This function takes the hostname, port and timeout,
-        creates a socket and sends a UDP probe from a list
-        of UDP probes extracted from the YAML file via the
-        extract_udp_probes function.
+    async def send_udp_probe(self, addr, probe, timeout):
+        print(f"\nsending probe: {probe}")
+        print(f"checking addr: {addr}\n")
+        loop = asyncio.get_running_loop()
+        on_con_lost = loop.create_future()
 
-        It checks multiple ports parallely and returns a
-        list of those running a UDP service
-        """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        peer_name = f"{host}:{port}"
-        sock.settimeout(timeout)
-        print(f"trying: {host}:{port}")
+        class UDPClientProtocol(asyncio.DatagramProtocol):
+            def connection_made(self, transport):
+                self.transport = transport
+                self.transport.sendto(probe, addr)
 
-        # Don't have to do this, we can do multithreading here
-        for probe in udp_probes:
-            print(f"Trying probe: {probe}")
-            try:
-                # We need to put a timeout here
-                sock.sendto(probe, (host, port))
-                response, addr = sock.recvfrom(1024)
-                if response:
-                    print(f"response: {response}")
-                sock.close()
-                break
-                # We closed the socket after the response
-                # Techincally correct, but for debugging, I am keeping this open
-                # We should get a return type here, and use that to log inside base.py
-            except socket.timeout:
-                print(f"No response from {host}:{port} after {timeout} seconds")
-                response = b""
-            except Exception:
-                try:
-                    print(f"we've hit this exception: {e}")
-                    sock.close()
-                    response = b""
-                except Exception:
-                    response = b""
-            if response:
-                print(f"received some response: {response}")
+            def datagram_received(self, data, _):
+                on_con_lost.set_result(data)
+                self.transport.close()
+
+            def error_received(self, exc):
+                on_con_lost.set_result(None)
+                self.transport.close()
+
+            def connection_lost(self, exc):
+                if not on_con_lost.done():
+                    on_con_lost.set_result(None)
+
+        transport, _ = await loop.create_datagram_endpoint(
+            lambda: UDPClientProtocol(),
+            remote_addr=addr
+        )
+
+        try:
+            return await asyncio.wait_for(on_con_lost, timeout)
+        except asyncio.TimeoutError:
+            print("I have hit timeout")
+            return None
+        finally:
+            transport.close()
+
+    async def udp_scan(self, host, port, timeout, udp_probes):
+        print(f"Resolving host: {host}")
+        loop = asyncio.get_running_loop()
+
+        try:
+            infos = await loop.getaddrinfo(host, port, family=socket.AF_INET, type=socket.SOCK_DGRAM)
+            addr = infos[0][4]  # tuple (ip, port)
+            print(f"Resolved {host} to {addr[0]}")
+        except Exception as e:
+            print(f"Failed to resolve {host}: {e}")
+
+        tasks = [
+            asyncio.create_task(self.send_udp_probe(addr, probe, timeout))
+            for probe in udp_probes
+        ]
+
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+
+        for task in pending:
+            task.cancel()
+
+        for task in done:
+            result = task.result()
+            if result:
+                print(f"Got response from {host}:{port}: {result}")
+            else:
+                print(f"got nothing from {host}:{port}")
+        print(f"No response from {host}:{port} after trying all probes.")
 
         # return {
         # "peer_name": peer_name,
@@ -214,24 +235,24 @@ class SocketLibrary(BaseLibrary):
 
     #     print(responses)
 
-    def tcp_connect_send_and_receive(self, host, port, timeout):
-        tcp_socket = create_tcp_socket(host, port, timeout)
+    async def tcp_connect_send_and_receive(self, host, port, timeout):
+        tcp_socket = await async_create_tcp_socket(host, port, timeout)
         if tcp_socket is None:
             return None
-
-        socket_connection, ssl_flag = tcp_socket
-        peer_name = socket_connection.getpeername()
+        writer, reader, ssl_flag = tcp_socket
+        peer_name = writer.get_extra_info("peername")
         print(f"Trying: {host}:{port}")
         try:
-            socket_connection.send(b"ABC\x00\r\n\r\n\r\n" * 10)
-            response = socket_connection.recv(1024 * 1024 * 10)
-            print(f"got response from tcp_connect_send_and_receive: {response}")
-            socket_connection.close()
-        # except ConnectionRefusedError:
-        #     return None
+            writer.write(b"ABC\x00\r\n\r\n\r\n" * 10)
+            await writer.drain()
+
+            response = await asyncio.wait_for(reader.read(1024 * 1024), timeout=timeout)
+            writer.close()
+            await writer.wait_closed()
         except Exception:
             try:
-                socket_connection.close()
+                writer.close()
+                await writer.wait_closed()
                 response = b""
             except Exception:
                 response = b""

@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import json
 import re
@@ -298,7 +299,10 @@ class BaseEngine(ABC):
 
         for _i in range(options["retries"]):
             try:
-                response = action(**sub_step)
+                if asyncio.iscoroutinefunction(action):
+                    response = asyncio.run(action(**sub_step))
+                else:
+                    response = action(**sub_step)
 
                 # And here again
                 if (
@@ -336,7 +340,7 @@ class BaseEngine(ABC):
             total_number_of_requests,
         )
 
-
+    # we need a seperate runner to ensure that the UDP scans are performed after the TCP ones and not in a sequential manner
     def run_udp_scan(
         self,
         sub_step,
@@ -381,7 +385,8 @@ class BaseEngine(ABC):
             try:
                 udp_port_scanner = getattr(self.library(), backup_udp_scan)
                 sub_step["udp_probes"] = options["udp_probes"]
-                response = udp_port_scanner(**sub_step)
+
+                response = asyncio.run(udp_port_scanner(**sub_step))
                 del sub_step["udp_probes"]
             except Exception as e:
                 response = []
@@ -392,18 +397,18 @@ class BaseEngine(ABC):
         sub_step["method_udp_scan"] = backup_udp_scan
         sub_step["response"]["conditions_results"] = response
 
-        self.apply_extra_data(sub_step, response)
+        # self.apply_extra_data(sub_step, response)
 
-        return self.process_conditions(
-            sub_step,
-            module_name,
-            target,
-            scan_id,
-            options,
-            response,
-            process_number,
-            module_thread_number,
-            total_module_thread_number,
-            request_number_counter,
-            total_number_of_requests,
-        )
+        # return self.process_conditions(
+        #     sub_step,
+        #     module_name,
+        #     target,
+        #     scan_id,
+        #     options,
+        #     response,
+        #     process_number,
+        #     module_thread_number,
+        #     total_module_thread_number,
+        #     request_number_counter,
+        #     total_number_of_requests,
+        # )
