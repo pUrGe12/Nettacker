@@ -415,6 +415,14 @@ class ArgParser(ArgumentParser):
             dest="read_from_file",
             help=_("user_wordlist"),
         )
+        method_options.add_argument(
+            "-sU",
+            "--scan-udp",
+            action="store_true",
+            default=Config.settings.scan_for_udp_services,
+            dest="scan_for_udp_services",
+            help=_("udp_scan")
+            )
 
         # API Options
         api_options = self.add_argument_group(_("API"), _("API_options"))

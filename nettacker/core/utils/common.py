@@ -391,3 +391,33 @@ def generate_compare_filepath(scan_id):
         date_time=now(format="%Y_%m_%d_%H_%M_%S"),
         scan_id=scan_id,
     )
+
+
+def extract_UDP_probes(probes_list):
+    """
+    Checking if UDP is there after "Probe" header
+    and if it is, then appending the bytes to the
+    list and finally returning that.
+    """
+    return [
+        bytes(probe.split("q|" if "q|" in probe else "q/")[1][:-1], encoding="utf-8")
+        for probe in probes_list
+        if "UDP" in probe.split("q|" if "q|" in probe else "q/")[0].split(" ")
+    ]
+
+
+def port_to_probes_and_matches_udp(data):
+    """
+    The main difference between the UDP one and the normal TCP one is the fact that I am calling the TCP
+    one AFTER port_scan is done and after I know all the TCP ports. That's why we were being selective there
+    with respect to the port.
+
+    Here though there is no need for each thread to search for its port number. Just use all of them.
+
+
+    Additionally, the matches in this case are all going to be empty lists. Cause UDP services don't reply!
+    """
+    results = {"probes": [], "matches": []}
+    for entry in data.get("service_logger", []):
+        results["probes"].append(entry.get("probe", [])[0])     # Ahh, this returns a list, we need to append the strings
+    return results

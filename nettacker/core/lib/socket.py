@@ -10,8 +10,9 @@ import ssl
 import struct
 import time
 
+from nettacker import udp_probes_set
 from nettacker.core.lib.base import BaseEngine, BaseLibrary
-from nettacker.core.utils.common import reverse_and_regex_condition, replace_dependent_response
+from nettacker.core.utils.common import reverse_and_regex_condition, replace_dependent_response, extract_UDP_probes
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +78,31 @@ class SocketLibrary(BaseLibrary):
             "service": socket.getservbyport(port),
             "response": response.decode(errors="ignore"),
             "ssl_flag": ssl_flag,
+        }
+
+    def udp_send_receive(self, host, port, timeout):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        peer_name = f"{host}:{port}"
+        for probe in list(udp_probes_set.keys()):
+            try:
+                sock.sendto(probe, (host, port))
+                response, addr = sock.recvfrom(1024)
+                sock.close()
+                break
+            except socket.timeout:
+                response = b""
+            except Exception as e:
+                try:
+                    sock.close()
+                    response = b""
+                except Exception:
+                    response = b""
+
+        return {
+            "peer_name": peer_name,
+            "service": socket.getservbyport(port),
+            "response": response.decode(errors="ignore")
         }
 
     def socket_icmp(self, host, timeout):
@@ -233,7 +259,7 @@ class SocketEngine(BaseEngine):
         condition_results = {}
         if sub_step["method"] == "tcp_connect_only":
             return response
-        if sub_step["method"] == "tcp_connect_send_and_receive":
+        if sub_step["method"] == "tcp_connect_send_and_receive" or sub_step["method"] == "udp_send_receive":
             if response:
                 for condition in conditions:
                     regex = re.findall(
@@ -247,7 +273,7 @@ class SocketEngine(BaseEngine):
 
                     if condition_results[condition]:
                         default_service = response["service"]
-                        ssl_flag = response["ssl_flag"]
+                        ssl_flag = response.get("ssl_flag", "")
                         matched_regex = condition_results[condition]
 
                         log_response = {
@@ -277,6 +303,7 @@ class SocketEngine(BaseEngine):
                 return []
         if sub_step["method"] == "socket_icmp":
             return response
+
         return []
 
     def apply_extra_data(self, sub_step, response):

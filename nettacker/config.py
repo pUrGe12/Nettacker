@@ -98,6 +98,7 @@ class PathConfig:
     data_dir = CWD / ".data"
     database_file = CWD / ".data/nettacker.db"
     graph_dir = PACKAGE_PATH / "lib/graph"
+    probes_file = PACKAGE_PATH / "lib/payloads/probes/version_probes.yaml"
     home_dir = CWD
     locale_dir = PACKAGE_PATH / "locale"
     logo_file = PACKAGE_PATH / "logo.txt"
@@ -133,6 +134,7 @@ class DefaultSettings(ConfigBase):
     scan_ip_range = False
     scan_subdomains = False
     selected_modules = None
+    scan_for_udp_services = False
     url_base_path = None
     read_from_file = ""
     set_hardware_usage = "maximum"  # low, normal, high, maximum

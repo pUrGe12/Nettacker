@@ -90,6 +90,8 @@ class Module:
             self.discovered_services = copy.deepcopy(services)
             index_payload = 0
             for payload in copy.deepcopy(self.module_content["payloads"]):
+                print(f"\nThis is payloadlib: {payload['library']}")
+                print(f"This is discovered_services: {self.discovered_services}\n")
                 if (
                     payload["library"] not in self.discovered_services
                     and payload["library"] in self.service_discovery_signatures
