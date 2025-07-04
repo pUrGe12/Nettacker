@@ -363,7 +363,7 @@ $(document).ready(function () {
               .catch(err => {
                 console.error(`Error updating progress for ${scan_id}:`, err);
               });
-          }, 2000);     
+          }, 3000);     
           const processingContainer = document.getElementById("processing_requests_container");
             if (processingContainer) processingContainer.appendChild(msgBox);
 

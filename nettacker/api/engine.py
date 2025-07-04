@@ -285,11 +285,14 @@ def get_progress(scan_id):
     if scan_id not in scan_progress:
         return {"progress": 0}
 
+    print(f"\nThis is scan_progress: {scan_progress}\n")
+
     current = scan_progress[scan_id]["current"]
     total = scan_progress[scan_id]["total"]
     target_being_scanned = scan_progress[scan_id]["target"]
     module_being_used = scan_progress[scan_id]["module"]
     percent = (current / total) * 100 if total else 0
+
     return jsonify(
         {
             "progress": round(percent, 2),
