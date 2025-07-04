@@ -320,48 +320,58 @@ $(document).ready(function () {
     }
   });
 
-  function generateRandomToken(length = 32) {
-  const characters = "abcdefghijklmnopqrstuvwxyz";
-  let token = "";
-  for (let i = 0; i < length; i++) {
-    token += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-  return token;
-  }
-
   // submit new scan
   $("#submit_new_scan").click(function () {
-    // display processing text
-    var scan_id = generateRandomToken(32);
-    const msgBox = document.createElement("p");
-    msgBox.className = "alert alert-info";
-    msgBox.innerHTML = `
-      Processing scan: <code>${scan_id}</code>
-      <span id="progress-${scan_id}" style="margin-left: 10px;">0%</span>
-      <span id="module-${scan_id}" style="margin-left: 10px;"></span>
-      <span id="target-${scan_id}" style="margin-left: 10px;"></span>
-    `;
 
-    // To display the percentage result, poll this every 3s
-    setInterval(() => {
-    fetch(`/get_scan_progress/${scan_id}`)
-      .then(res => res.json())
-      .then(data => {
-        const percent = data.progress;
-        const module = data.module;
-        const target = data.target;
+    // Poll and get the scan_id first
+    const pollScanId = setInterval(() => {
+      fetch("/get_scan_id")
+        .then(res => res.json())
+        .then(data => {
+          if (!data.scan_id) return;  // still waiting...
 
-        document.getElementById(`progress-${scan_id}`).innerText = `${percent}%`;
-        document.getElementById(`module-${scan_id}`).innerText = `Module: ${module}`;
-        document.getElementById(`target-${scan_id}`).innerText = `Target: ${target}`;
-      })
-      .catch(err => {
-        console.error(`Error updating progress for ${scan_id}:`, err);
-      });
-    }, 3000);
+          clearInterval(pollScanId); // got it, stop polling
+          const scan_id = data.scan_id;
 
 
-    document.getElementById("processing_requests_container").appendChild(msgBox);
+          const msgBox = document.createElement("p");
+          msgBox.className = "alert alert-info";
+          msgBox.innerHTML = `
+            Processing scan: <code>${scan_id}</code>
+            <span id="progress-${scan_id}" style="margin-left: 10px;">0%</span>
+            <span id="module-${scan_id}" style="margin-left: 10px;"></span>
+            <span id="target-${scan_id}" style="margin-left: 10px;"></span>
+          `;
+          const container = document.getElementById("scanResults");
+            if (container) container.prepend(msgBox);
+
+          
+          const progressPoll = setInterval(() => {
+            fetch(`/get_scan_progress/${scan_id}`)
+              .then(res => res.json())
+              .then(data => {
+                const percent = data.progress;
+                const module = data.module;
+                const target = data.target;
+
+                document.getElementById(`progress-${scan_id}`).innerText = `${percent}%`;
+                document.getElementById(`module-${scan_id}`).innerText = `Module: ${module}`;
+                document.getElementById(`target-${scan_id}`).innerText = `Target: ${target}`;
+
+                if (percent >= 100) clearInterval(progressPoll); // stop polling when done
+              })
+              .catch(err => {
+                console.error(`Error updating progress for ${scan_id}:`, err);
+              });
+          }, 2000);     
+          const processingContainer = document.getElementById("processing_requests_container");
+            if (processingContainer) processingContainer.appendChild(msgBox);
+
+        })
+        .catch(err => {
+          console.error("Error getting scan_id", err);
+        });
+    }, 500);
     // set variables
     // check ranges
     if (document.getElementById("scan_ip_range").checked) {
@@ -411,7 +421,6 @@ $(document).ready(function () {
     });
     // build post data
     var tmp_data = {
-      scan_id: scan_id,
       targets: $("#targets").val(),
       profiles: profiles,
       selected_modules: selected_modules,

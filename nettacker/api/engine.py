@@ -6,6 +6,7 @@ import os
 import random
 import string
 import time
+import queue
 
 from flask import Flask, jsonify
 from flask import request as flask_request
@@ -30,7 +31,7 @@ from nettacker.core.die import die_failure
 from nettacker.core.graph import create_compare_report
 from nettacker.core.messages import messages as _
 from nettacker.core.tasks import new_scan_task
-from nettacker.core.utils.common import now, generate_compare_filepath, RouteFilter
+from nettacker.core.utils.common import now, generate_compare_filepath, RouteFilter, generate_random_token
 from nettacker.database.db import (
     create_connection,
     get_logs_by_scan_id,
@@ -62,6 +63,7 @@ nettacker_application_config = Config.settings.as_dict()
 nettacker_application_config.update(Config.api.as_dict())
 del nettacker_application_config["api_access_key"]
 
+scan_id_queue = queue.Queue()
 
 @app.errorhandler(400)
 def error_400(error):
@@ -264,9 +266,10 @@ def new_scan():
         return jsonify(structure(status="error", msg="Invalid report filename")), 400
     form_values["report_path_filename"] = str(report_path_filename)
 
-    form_values["scan_id"] = str(
-        form_values["scan_id"]
-    )  # For any web content, we set the scan_id before hand and always use that in the future
+    # I need to add it to form_values here. Not in the js. The problem then is, how do I tell this to
+    # the web application, what the scan_value is
+    form_values["scan_id"] = scan_id_queue.get()  # For any web content, we set the scan_id in /get_scan_id and use that
+    # The frontend knows to wait for the scan_id to be generated before proceeding
 
     for key in nettacker_application_config:
         if key not in form_values:
@@ -295,6 +298,16 @@ def get_progress(scan_id):
             "scan_id": scan_id,
         }
     )
+
+
+@app.route("/get_scan_id")
+def get_scanid():
+    scan_id = generate_random_token(32)
+    scan_id_queue.put(scan_id)
+
+    return jsonify({
+        "scan_id": scan_id
+        })
 
 
 @app.route("/get_running_scans", methods=["GET"])
