@@ -639,6 +639,7 @@ def start_api_subprocess(options):
                 port=options.api_port,
                 debug=options.api_debug_mode,
                 ssl_context="adhoc",  # commenting this for codespaces
+                use_reloader=False,
                 threaded=True,
             )
     except Exception as e:

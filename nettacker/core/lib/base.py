@@ -122,15 +122,13 @@ class BaseEngine(ABC):
         request_number_counter,
         total_number_of_requests,
     ):
+
         scan_progress = get_shared_dict()
         with Lock():
             # Had to do it this way because I can't edit the inner dict in place cause its a normal dict and its not shraed across processes probably
-            scan_progress[scan_id] = {
-                "current": request_number_counter + 1,
-                "total": total_number_of_requests,
-                "target": target,
-                "module": module_name,
-            }
+            scan_progress[scan_id]["current"] = request_number_counter + 1
+            scan_progress[scan_id]["target"] = target
+            scan_progress[scan_id]["module"] = module_name
 
         if "save_to_temp_events_only" in event.get("response", ""):
             submit_temp_logs_to_db(
@@ -279,7 +277,7 @@ class BaseEngine(ABC):
     ):
         """Engine entry point."""
 
-        scan_progress = get_shared_dict()
+        
         backup_method = copy.deepcopy(sub_step["method"])
         backup_response = copy.deepcopy(sub_step["response"])
         del sub_step["method"]
@@ -324,13 +322,5 @@ class BaseEngine(ABC):
             total_number_of_requests,
         )
 
-        with Lock():
-            # Had to do it this way because I can't edit the inner dict in place cause its a normal dict and its not shraed across processes probably
-            scan_progress[scan_id] = {
-                "current": request_number_counter + 1,
-                "total": total_number_of_requests,
-                "target": target,
-                "module": module_name,
-            }
-
+        
         return result
