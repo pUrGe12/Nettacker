@@ -1,7 +1,8 @@
-from multiprocessing import Manager
+_shared_dict = None
 
-# This is to store the progress of each scan.
-# It takes the scan_id as a key, and stores another dictionary as the value.
-# The innner dict holds the number of scans completed and their total number
-dict_manager = Manager()
-scan_progress = dict_manager.dict()
+def set_shared_dict(d):
+    global _shared_dict
+    _shared_dict = d
+
+def get_shared_dict():
+    return _shared_dict

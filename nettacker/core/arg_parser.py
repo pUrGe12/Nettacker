@@ -1,6 +1,9 @@
 import json
 import sys
 from argparse import ArgumentParser
+from nettacker import set_shared_dict
+from multiprocessing import Manager
+
 
 import yaml
 
@@ -738,4 +741,7 @@ class ArgParser(ArgumentParser):
         options.time_sleep_between_requests = float(options.time_sleep_between_requests)
         options.retries = int(options.retries)
 
+        dict_manager = Manager()
+        scan_progress = dict_manager.dict()
+        set_shared_dict(scan_progress)
         self.arguments = options

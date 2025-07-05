@@ -14,7 +14,7 @@ from flask import render_template, abort, Response, make_response
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.utils import secure_filename
 
-from nettacker import logger, scan_progress
+from nettacker import logger, get_shared_dict
 from nettacker.api.core import (
     get_value,
     get_file,
@@ -282,6 +282,7 @@ def new_scan():
 
 @app.route("/get_scan_progress/<scan_id>")
 def get_progress(scan_id):
+    scan_progress = get_shared_dict()
     if scan_id not in scan_progress:
         return {"progress": 0}
 
@@ -305,6 +306,7 @@ def get_progress(scan_id):
 
 @app.route("/get_scan_id")
 def get_scanid():
+    print("I entered here")
     scan_id = generate_random_token(32)
     scan_id_queue.put(scan_id)
 

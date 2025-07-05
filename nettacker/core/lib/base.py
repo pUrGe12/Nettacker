@@ -8,7 +8,7 @@ from multiprocessing import Lock
 
 import yaml
 
-from nettacker import scan_progress
+from nettacker import get_shared_dict
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.utils.common import merge_logs_to_list
@@ -122,7 +122,7 @@ class BaseEngine(ABC):
         request_number_counter,
         total_number_of_requests,
     ):
-
+        scan_progress = get_shared_dict()
         with Lock():
             # Had to do it this way because I can't edit the inner dict in place cause its a normal dict and its not shraed across processes probably
             scan_progress[scan_id] = {
@@ -278,6 +278,8 @@ class BaseEngine(ABC):
         total_number_of_requests,
     ):
         """Engine entry point."""
+
+        scan_progress = get_shared_dict()
         backup_method = copy.deepcopy(sub_step["method"])
         backup_response = copy.deepcopy(sub_step["response"])
         del sub_step["method"]
@@ -330,6 +332,5 @@ class BaseEngine(ABC):
                 "target": target,
                 "module": module_name,
             }
-
 
         return result

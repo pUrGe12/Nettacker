@@ -5,7 +5,7 @@ import os
 import time
 from threading import Thread
 
-from nettacker import logger, scan_progress
+from nettacker import logger, get_shared_dict
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.template import TemplateLoader
@@ -149,6 +149,8 @@ class Module:
         if self.module_inputs["thread_per_host"] > total_number_of_requests:
             current_val = total_number_of_requests
 
+        scan_progress = get_shared_dict()
+        
         scan_progress[self.scan_id] = {
             "current": current_val,
             "total": total_number_of_requests,
