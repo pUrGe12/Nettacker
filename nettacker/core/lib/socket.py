@@ -82,7 +82,7 @@ class SocketLibrary(BaseLibrary):
 
     def udp_send_receive(self, host, port, timeout):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(timeout)
+        sock.settimeout(0.5)
         peer_name = f"{host}:{port}"
         for probe in list(udp_probes_set.keys()):
             try:
@@ -283,6 +283,7 @@ class SocketEngine(BaseEngine):
                             "ssl_flag": ssl_flag,
                         }
                         condition_results["service"] = [str(log_response)]
+
                 for condition in copy.deepcopy(condition_results):
                     if not condition_results[condition]:
                         del condition_results[condition]
@@ -308,7 +309,7 @@ class SocketEngine(BaseEngine):
 
     def apply_extra_data(self, sub_step, response):
         sub_step["response"]["ssl_flag"] = (
-            response["ssl_flag"] if isinstance(response, dict) else False
+            response.get("ssl_flag", "") if isinstance(response, dict) else False
         )
         sub_step["response"]["conditions_results"] = self.response_conditions_matched(
             sub_step, response

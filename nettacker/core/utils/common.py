@@ -25,6 +25,7 @@ def replace_dependent_response(log, response_dependent):
             try:
                 key_value = eval(i)
             except Exception:
+                print("I hit this sometimes")
                 key_value = "response dependent error"
             log = log.replace(i, " ".join(key_value))
         return log

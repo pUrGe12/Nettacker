@@ -286,6 +286,8 @@ class BaseEngine(ABC):
         for _i in range(options["retries"]):
             try:
                 response = action(**sub_step)
+                if not response.get("response", True):
+                    response = []
                 break
             except Exception:
                 response = []

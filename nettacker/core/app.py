@@ -159,7 +159,7 @@ class Nettacker(ArgParser):
 
 
         # udp_scan
-        if self.arguments.scan_for_udp_services:
+        if self.arguments.scan_for_udp_services or "udp_scan" in self.arguments.selected_modules:
             self.load_udp_probes()
             selected_modules = self.arguments.selected_modules
             self.arguments.selected_modules = ["udp_scan"]
