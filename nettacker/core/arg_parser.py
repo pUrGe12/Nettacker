@@ -421,8 +421,8 @@ class ArgParser(ArgumentParser):
             action="store_true",
             default=Config.settings.scan_for_udp_services,
             dest="scan_for_udp_services",
-            help=_("udp_scan")
-            )
+            help=_("udp_scan"),
+        )
 
         # API Options
         api_options = self.add_argument_group(_("API"), _("API_options"))

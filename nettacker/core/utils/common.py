@@ -420,5 +420,7 @@ def port_to_probes_and_matches_udp(data):
     """
     results = {"probes": [], "matches": []}
     for entry in data.get("service_logger", []):
-        results["probes"].append(entry.get("probe", [])[0])     # Ahh, this returns a list, we need to append the strings
+        results["probes"].append(
+            entry.get("probe", [])[0]
+        )  # Ahh, this returns a list, we need to append the strings
     return results

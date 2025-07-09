@@ -12,7 +12,7 @@ import time
 
 from nettacker import udp_probes_set
 from nettacker.core.lib.base import BaseEngine, BaseLibrary
-from nettacker.core.utils.common import reverse_and_regex_condition, replace_dependent_response, extract_UDP_probes
+from nettacker.core.utils.common import reverse_and_regex_condition, replace_dependent_response
 
 log = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class SocketLibrary(BaseLibrary):
                 break
             except socket.timeout:
                 response = b""
-            except Exception as e:
+            except Exception:
                 try:
                     sock.close()
                     response = b""
@@ -102,7 +102,7 @@ class SocketLibrary(BaseLibrary):
         return {
             "peer_name": peer_name,
             "service": socket.getservbyport(port),
-            "response": response.decode(errors="ignore")
+            "response": response.decode(errors="ignore"),
         }
 
     def socket_icmp(self, host, timeout):
@@ -259,7 +259,10 @@ class SocketEngine(BaseEngine):
         condition_results = {}
         if sub_step["method"] == "tcp_connect_only":
             return response
-        if sub_step["method"] == "tcp_connect_send_and_receive" or sub_step["method"] == "udp_send_receive":
+        if (
+            sub_step["method"] == "tcp_connect_send_and_receive"
+            or sub_step["method"] == "udp_send_receive"
+        ):
             if response:
                 for condition in conditions:
                     regex = re.findall(

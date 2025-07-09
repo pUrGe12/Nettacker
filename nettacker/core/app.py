@@ -26,7 +26,11 @@ from nettacker.core.messages import messages as _
 from nettacker.core.module import Module
 from nettacker.core.socks_proxy import set_socks_proxy
 from nettacker.core.utils import common as common_utils
-from nettacker.core.utils.common import wait_for_threads_to_finish, extract_UDP_probes, port_to_probes_and_matches_udp
+from nettacker.core.utils.common import (
+    wait_for_threads_to_finish,
+    extract_UDP_probes,
+    port_to_probes_and_matches_udp,
+)
 from nettacker.database.db import find_events, remove_old_logs
 from nettacker.database.mysql import mysql_create_database, mysql_create_tables
 from nettacker.database.postgresql import postgres_create_database
@@ -94,21 +98,19 @@ class Nettacker(ArgParser):
         else:
             die_failure(_("invalid_database"))
 
-
     def load_udp_probes(self):
         # Creating a different function here because I don't want all the threads to
         # do the same thing, and get the same results. I will just pass this result
         # directly. Basically read the file once at the start, if required.
 
         import yaml
-        
+
         log.info(_("loading_probes_udp"))
         with open(Config.path.probes_file) as stream:
             data = yaml.safe_load(stream)
         for probe in extract_UDP_probes(port_to_probes_and_matches_udp(data)["probes"]):
             udp_probes_set[probe] = True
         log.info(_("loaded_probes"))
-
 
     def expand_targets(self, scan_id):
         """
@@ -156,7 +158,6 @@ class Nettacker(ArgParser):
                 targets.append(target)
         self.arguments.targets = targets
         self.arguments.url_base_path = base_path
-
 
         # udp_scan
         if self.arguments.scan_for_udp_services or "udp_scan" in self.arguments.selected_modules:
