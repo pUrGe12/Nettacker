@@ -5,7 +5,7 @@ import os
 import time
 from threading import Thread
 
-from nettacker import logger, get_shared_dict, get_shared_manager
+from nettacker import logger
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.template import TemplateLoader
@@ -144,20 +144,6 @@ class Module:
                 return None
             for step in payload["steps"]:
                 total_number_of_requests += len(step)
-
-        current_val = 0
-        if self.module_inputs["thread_per_host"] > total_number_of_requests:
-            current_val = total_number_of_requests
-
-        scan_progress = get_shared_dict()
-        dict_manager = get_shared_manager()
-        
-        scan_progress[self.scan_id] = dict_manager.dict({
-            "current": current_val,
-            "total": total_number_of_requests,
-            "target": self.target,
-            "module": self.module_name,
-        })
 
         request_number_counter = 0
         for payload in self.module_content["payloads"]:

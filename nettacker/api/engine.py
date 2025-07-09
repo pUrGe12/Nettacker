@@ -14,7 +14,7 @@ from flask import render_template, abort, Response, make_response
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.utils import secure_filename
 
-from nettacker import logger, get_shared_dict
+from nettacker import logger
 from nettacker.api.core import (
     get_value,
     get_file,
@@ -280,35 +280,11 @@ def new_scan():
     return jsonify(task_result), 200
 
 
-@app.route("/get_scan_progress/<scan_id>")
-def get_progress(scan_id):
-    scan_progress = get_shared_dict()
-    if scan_id not in scan_progress:
-        return {"progress": 0}
-
-    print(f"\nThis is scan_progress: {scan_progress}\n")
-
-    current = scan_progress[scan_id]["current"]
-    total = scan_progress[scan_id]["total"]
-    target_being_scanned = scan_progress[scan_id]["target"]
-    module_being_used = scan_progress[scan_id]["module"]
-    percent = (current / total) * 100 if total else 0
-
-    return jsonify(
-        {
-            "progress": round(percent, 2),
-            "module": module_being_used,
-            "target": target_being_scanned,
-            "scan_id": scan_id,
-        }
-    )
-
-
 @app.route("/get_scan_id")
 def get_scanid():
-    print("I entered here")
     scan_id = generate_random_token(32)
     scan_id_queue.put(scan_id)
+    print(f"thisis the scan_id: {scan_id}")
 
     return jsonify({
         "scan_id": scan_id
@@ -321,7 +297,14 @@ def get_running_scans():
     scan_progress is the dictionary that holds all the running scan_ids and their progress
     in itself. So, this should suffice.
     """
-    return jsonify(scan_progress)
+    running_scans = {
+        "scan_ids": []
+    }
+    while len(scan_id_queue) != 0:
+        scan_id = scan_id_queue.get()
+        running_scans["scan_ids"].append(scan_id)
+
+    return jsonify(running_scans)
 
 
 @app.route("/compare/scans", methods=["POST"])

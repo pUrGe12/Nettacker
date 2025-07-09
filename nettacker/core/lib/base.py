@@ -8,7 +8,6 @@ from multiprocessing import Lock
 
 import yaml
 
-from nettacker import get_shared_dict
 from nettacker.config import Config
 from nettacker.core.messages import messages as _
 from nettacker.core.utils.common import merge_logs_to_list
@@ -122,14 +121,6 @@ class BaseEngine(ABC):
         request_number_counter,
         total_number_of_requests,
     ):
-
-        scan_progress = get_shared_dict()
-        with Lock():
-            # Had to do it this way because I can't edit the inner dict in place cause its a normal dict and its not shraed across processes probably
-            scan_progress[scan_id]["current"] = request_number_counter + 1
-            scan_progress[scan_id]["target"] = target
-            scan_progress[scan_id]["module"] = module_name
-
         if "save_to_temp_events_only" in event.get("response", ""):
             submit_temp_logs_to_db(
                 {

@@ -323,55 +323,30 @@ $(document).ready(function () {
   // submit new scan
   $("#submit_new_scan").click(function () {
 
-    // Poll and get the scan_id first
     const pollScanId = setInterval(() => {
       fetch("/get_scan_id")
         .then(res => res.json())
         .then(data => {
-          if (!data.scan_id) return;  // still waiting...
+          if (!data.scan_id) return; // still waiting...
 
           clearInterval(pollScanId); // got it, stop polling
           const scan_id = data.scan_id;
 
-
           const msgBox = document.createElement("p");
           msgBox.className = "alert alert-info";
           msgBox.innerHTML = `
-            Processing scan: <code>${scan_id}</code>
-            <span id="progress-${scan_id}" style="margin-left: 10px;">0%</span>
-            <span id="module-${scan_id}" style="margin-left: 10px;"></span>
-            <span id="target-${scan_id}" style="margin-left: 10px;"></span>
+            Scan ID: <code>${scan_id}</code>
           `;
           const container = document.getElementById("scanResults");
             if (container) container.prepend(msgBox);
-
-          
-          const progressPoll = setInterval(() => {
-            fetch(`/get_scan_progress/${scan_id}`)
-              .then(res => res.json())
-              .then(data => {
-                const percent = data.progress;
-                const module = data.module;
-                const target = data.target;
-
-                document.getElementById(`progress-${scan_id}`).innerText = `${percent}%`;
-                document.getElementById(`module-${scan_id}`).innerText = `Module: ${module}`;
-                document.getElementById(`target-${scan_id}`).innerText = `Target: ${target}`;
-
-                if (percent >= 100) clearInterval(progressPoll); // stop polling when done
-              })
-              .catch(err => {
-                console.error(`Error updating progress for ${scan_id}:`, err);
-              });
-          }, 3000);     
           const processingContainer = document.getElementById("processing_requests_container");
             if (processingContainer) processingContainer.appendChild(msgBox);
-
         })
         .catch(err => {
           console.error("Error getting scan_id", err);
         });
     }, 500);
+
     // set variables
     // check ranges
     if (document.getElementById("scan_ip_range").checked) {

@@ -1,7 +1,6 @@
 import json
 import sys
 from argparse import ArgumentParser
-from nettacker import set_shared_dict, set_shared_manager
 from multiprocessing import Manager
 
 
