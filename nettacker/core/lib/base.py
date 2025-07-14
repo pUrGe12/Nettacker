@@ -4,7 +4,6 @@ import re
 import time
 from abc import ABC
 from datetime import datetime
-from multiprocessing import Lock
 
 import yaml
 
@@ -268,7 +267,6 @@ class BaseEngine(ABC):
     ):
         """Engine entry point."""
 
-        
         backup_method = copy.deepcopy(sub_step["method"])
         backup_response = copy.deepcopy(sub_step["response"])
         del sub_step["method"]
@@ -313,5 +311,4 @@ class BaseEngine(ABC):
             total_number_of_requests,
         )
 
-        
         return result

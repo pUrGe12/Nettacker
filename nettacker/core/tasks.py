@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
-from nettacker.core.utils.huey_config import huey
+from nettacker.core.utils.huey_config import get_huey_instance
+
+huey = get_huey_instance()
 
 
 @huey.task(retries=3, retry_delay=2)

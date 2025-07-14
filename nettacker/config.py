@@ -87,6 +87,20 @@ class DbConfig(ConfigBase):
     ssl_mode = "disable"
 
 
+class HueyConfig(ConfigBase):
+    """
+    Huey configurations for SQLite and Redis based systems.
+    Set the huey_redis parameter to True if you want to use a
+    redis based broker. The default broker is SQLite
+    """
+
+    huey_redis = False
+    filename = CWD / ".broker/huey_broker.db"
+    results = False
+    immediate = True
+    immediate_use_memory = False
+
+
 class PathConfig:
     """
     home path for the framework (could be modify by user)
@@ -165,3 +179,4 @@ class Config:
     db = DbConfig()
     path = PathConfig()
     settings = DefaultSettings()
+    huey = HueyConfig()

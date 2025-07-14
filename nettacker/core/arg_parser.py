@@ -1,8 +1,6 @@
 import json
 import sys
 from argparse import ArgumentParser
-from multiprocessing import Manager
-
 
 import yaml
 
