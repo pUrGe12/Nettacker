@@ -335,8 +335,8 @@ $(document).ready(function () {
           const msgBox = document.createElement("p");
           msgBox.className = "alert alert-info";
           msgBox.innerHTML = `
-            Scan ID: <code>${scan_id}</code>
-          `;
+            Scan ID: <code>${scan_id}</code>: Running scan ...  
+          `;                                                    // Show the time elapsed here
           const container = document.getElementById("scanResults");
             if (container) container.prepend(msgBox);
           const processingContainer = document.getElementById("processing_requests_container");
