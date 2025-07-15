@@ -320,6 +320,48 @@ $(document).ready(function () {
     }
   });
 
+
+  // For the running scans section
+
+  function addRunningScan(scan_id) {
+      const container = document.getElementById("running_scans");
+      
+      // Remove empty state if it exists
+      const emptyState = container.querySelector('.empty-section');
+      if (emptyState) {
+          emptyState.remove();
+      }
+      
+      // Create the running scan item
+      const runningScanItem = document.createElement("div");
+      runningScanItem.className = "running-scan-item";
+      runningScanItem.dataset.scanId = scan_id;
+      runningScanItem.innerHTML = `
+          <div class="running-scan-info">
+              <div class="running-scan-id">Scan ID: ${scan_id}</div>
+              <div class="running-scan-status">"Running scan ..."</div>
+          </div>
+          <div class="running-spinner"></div>
+      `;
+      
+      container.appendChild(runningScanItem);
+      return runningScanItem;
+  }
+
+  // Remove running scan (when completed or failed)
+  function removeRunningScan(scan_id) {
+      const runningScanItem = document.querySelector(`[data-scan-id="${scan_id}"]`);
+      if (runningScanItem) {
+          runningScanItem.remove();
+      }
+      
+      // Check if container is empty and show empty state
+      const container = document.getElementById("running_scans");
+      if (container.children.length === 0) {
+          container.innerHTML = '<div class="empty-section">No running scans</div>';
+      }
+  }
+
   // Will be needed for multiple scans
   const activeScanTimers = new Map();
 
@@ -359,6 +401,7 @@ $(document).ready(function () {
       startTime: Date.now(),
       msgBox: msgBox
     });
+    addRunningScan(scanId);
   }
 
   // Function to stop tracking a scan
@@ -367,6 +410,9 @@ $(document).ready(function () {
     if (scanData) {
       const totalTime = Date.now() - scanData.startTime;
       activeScanTimers.delete(scanId);
+
+      removeRunningScan(scanId);
+
       return totalTime;
     }
     return 0;
@@ -707,7 +753,7 @@ $(document).ready(function () {
       HTMLData = '<p class="mb-1"> No more results to show!!</p>';
     }
 
-    document.getElementById("scan_results").innerHTML = HTMLData;
+    document.getElementById("completed_scans").innerHTML = HTMLData;
   }
 
   function get_results_list(result_page) {
