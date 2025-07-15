@@ -285,7 +285,7 @@ def new_scan():
 
     task_result = new_scan_task(form_values)
 
-    return jsonify(task_result), 200
+    return jsonify(form_values), 200
 
 
 @app.route("/get_scan_id")
