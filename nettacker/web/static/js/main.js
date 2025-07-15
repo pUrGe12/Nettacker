@@ -320,8 +320,36 @@ $(document).ready(function () {
     }
   });
 
+  let scanStartTime = null;
+  let timerInterval = null;
+  let currentMsgBox = null;
+
+  function formatElapsedTime(milliseconds) {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${remainingSeconds}s`;
+  }
+
+  // Function to update the timer display
+  function updateTimer() {
+    if (scanStartTime && currentMsgBox) {
+      const elapsed = Date.now() - scanStartTime;
+      const scan_id = currentMsgBox.dataset.scanId || '';
+      currentMsgBox.innerHTML = `
+        Scan ID: <code>${scan_id}</code>: Running scan ... (${formatElapsedTime(elapsed)})
+      `;
+    }
+  }
+  
   // submit new scan
   $("#submit_new_scan").click(function () {
+
+    var startTime, endTime;
 
     const pollScanId = setInterval(() => {
       fetch("/get_scan_id")
@@ -332,15 +360,24 @@ $(document).ready(function () {
           clearInterval(pollScanId); // got it, stop polling
           const scan_id = data.scan_id;
 
+          scanStartTime = Date.now();
+
           const msgBox = document.createElement("p");
           msgBox.className = "alert alert-info";
+          msgBox.dataset.scanId = scan_id; // Store scan_id for timer updates
           msgBox.innerHTML = `
-            Scan ID: <code>${scan_id}</code>: Running scan ...  
-          `;                                                    // Show the time elapsed here
+            Scan ID: <code>${scan_id}</code>: Running scan ... (0s)
+          `;                                              // Show the time elapsed here
+
+          currentMsgBox = msgBox;
+
           const container = document.getElementById("scanResults");
-            if (container) container.prepend(msgBox);
+          if (container) container.prepend(msgBox);
           const processingContainer = document.getElementById("processing_requests_container");
-            if (processingContainer) processingContainer.appendChild(msgBox);
+          if (processingContainer) processingContainer.appendChild(msgBox);
+          
+          // Start the timer that updates every second
+          timerInterval = setInterval(updateTimer, 1000);
         })
         .catch(err => {
           console.error("Error getting scan_id", err);
@@ -436,6 +473,25 @@ $(document).ready(function () {
       data: data,
     })
       .done(function (res) {
+
+        // stop the clock here
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+
+        if (currentMsgBox && scanStartTime) {
+          const totalTime = Date.now() - scanStartTime;
+          const scan_id = currentMsgBox.dataset.scanId || '';
+          currentMsgBox.innerHTML = `
+            Scan ID: <code>${scan_id}</code>: Completed in ${formatElapsedTime(totalTime)}
+          `;
+        }
+
+        // Resetting timing variables
+        scanStartTime = null;
+        currentMsgBox = null;
+
         var results = JSON.stringify(res);
         results = results.replaceAll(",", ",<br>");
         document.getElementById("success_msg").innerHTML = results;
@@ -446,6 +502,23 @@ $(document).ready(function () {
         $("#success_request").removeClass("animated fadeOut");
       })
       .fail(function (jqXHR, textStatus, errorThrown) {
+
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+
+        if (currentMsgBox) {
+            const scan_id = currentMsgBox.dataset.scanId || '';
+            currentMsgBox.innerHTML = `
+              Scan ID: <code>${scan_id}</code>: Failed
+            `;
+          }
+          
+        // Resetting timing variables
+        scanStartTime = null;
+        currentMsgBox = null;
+
         document.getElementById("error_msg").innerHTML = jqXHR.responseText;
         if (errorThrown == "BAD REQUEST") {
           $("#processing_request").addClass("hidden");
