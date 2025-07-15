@@ -320,6 +320,9 @@ $(document).ready(function () {
     }
   });
 
+  // Will be needed for multiple scans
+  const activeScanTimers = new Map();
+
   let scanStartTime = null;
   let timerInterval = null;
   let currentMsgBox = null;
@@ -335,21 +338,45 @@ $(document).ready(function () {
     return `${remainingSeconds}s`;
   }
 
-  // Function to update the timer display
-  function updateTimer() {
-    if (scanStartTime && currentMsgBox) {
-      const elapsed = Date.now() - scanStartTime;
-      const scan_id = currentMsgBox.dataset.scanId || '';
-      currentMsgBox.innerHTML = `
-        Scan ID: <code>${scan_id}</code>: Running scan ... (${formatElapsedTime(elapsed)})
-      `;
+  // Function to update all active scan timers
+  function updateAllTimers() {
+    activeScanTimers.forEach((scanData, scanId) => {
+      if (scanData.msgBox && scanData.startTime) {
+        const elapsed = Date.now() - scanData.startTime;
+        scanData.msgBox.innerHTML = `
+          Scan ID: <code>${scanId}</code>: Running scan ... (${formatElapsedTime(elapsed)})
+        `;
+      }
+    });
+  }
+
+  // Start a global timer that updates all scans every second
+  let globalTimerInterval = setInterval(updateAllTimers, 1000);
+
+  // Function to start tracking a new scan
+  function startScanTimer(scanId, msgBox) {
+    activeScanTimers.set(scanId, {
+      startTime: Date.now(),
+      msgBox: msgBox
+    });
+  }
+
+  // Function to stop tracking a scan
+  function stopScanTimer(scanId) {
+    const scanData = activeScanTimers.get(scanId);
+    if (scanData) {
+      const totalTime = Date.now() - scanData.startTime;
+      activeScanTimers.delete(scanId);
+      return totalTime;
     }
+    return 0;
   }
   
   // submit new scan
   $("#submit_new_scan").click(function () {
 
-    var startTime, endTime;
+    let currentScanId = null;
+    let currentMsgBox = null;
 
     const pollScanId = setInterval(() => {
       fetch("/get_scan_id")
@@ -359,6 +386,7 @@ $(document).ready(function () {
 
           clearInterval(pollScanId); // got it, stop polling
           const scan_id = data.scan_id;
+          currentScanId = scan_id;
 
           scanStartTime = Date.now();
 
@@ -376,8 +404,8 @@ $(document).ready(function () {
           const processingContainer = document.getElementById("processing_requests_container");
           if (processingContainer) processingContainer.appendChild(msgBox);
           
-          // Start the timer that updates every second
-          timerInterval = setInterval(updateTimer, 1000);
+          // Start tracking this scan
+          startScanTimer(scan_id, msgBox);
         })
         .catch(err => {
           console.error("Error getting scan_id", err);
@@ -474,23 +502,16 @@ $(document).ready(function () {
     })
       .done(function (res) {
 
-        // stop the clock here
-        if (timerInterval) {
-          clearInterval(timerInterval);
-          timerInterval = null;
-        }
+        // Stop tracking this specific scan
+        if (currentScanId) {
+          const totalTime = stopScanTimer(currentScanId);
 
-        if (currentMsgBox && scanStartTime) {
-          const totalTime = Date.now() - scanStartTime;
-          const scan_id = currentMsgBox.dataset.scanId || '';
+        if (currentMsgBox) {
           currentMsgBox.innerHTML = `
-            Scan ID: <code>${scan_id}</code>: Completed in ${formatElapsedTime(totalTime)}
+            Scan ID: <code>${currentScanId}</code>: Completed in ${formatElapsedTime(totalTime)}
           `;
+          }
         }
-
-        // Resetting timing variables
-        scanStartTime = null;
-        currentMsgBox = null;
 
         var results = JSON.stringify(res);
         results = results.replaceAll(",", ",<br>");
@@ -502,22 +523,16 @@ $(document).ready(function () {
         $("#success_request").removeClass("animated fadeOut");
       })
       .fail(function (jqXHR, textStatus, errorThrown) {
-
-        if (timerInterval) {
-          clearInterval(timerInterval);
-          timerInterval = null;
-        }
-
-        if (currentMsgBox) {
-            const scan_id = currentMsgBox.dataset.scanId || '';
-            currentMsgBox.innerHTML = `
-              Scan ID: <code>${scan_id}</code>: Failed
-            `;
-          }
+        if (currentScanId) {
+          stopScanTimer(currentScanId);
           
-        // Resetting timing variables
-        scanStartTime = null;
-        currentMsgBox = null;
+          if (currentMsgBox) {
+            currentMsgBox.innerHTML = `
+              Scan ID: <code>${currentScanId}</code>: Failed
+            `;
+            currentMsgBox.className = "alert alert-danger";
+          }
+        }
 
         document.getElementById("error_msg").innerHTML = jqXHR.responseText;
         if (errorThrown == "BAD REQUEST") {
