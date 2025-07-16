@@ -345,21 +345,27 @@ $(document).ready(function () {
       `;
       
       container.appendChild(runningScanItem);
+
       return runningScanItem;
   }
 
   // Remove running scan (when completed or failed)
   function removeRunningScan(scan_id) {
-      const runningScanItem = document.querySelector(`[data-scan-id="${scan_id}"]`);
+      // Scope this to just running scans. 
+      const container = document.getElementById("running_scans");
+
+      const runningScanItem = container.querySelector(`[data-scan-id="${String(scan_id)}"]`);
+
       if (runningScanItem) {
           runningScanItem.remove();
       }
       
       // Check if container is empty and show empty state
-      const container = document.getElementById("running_scans");
+      
       if (container.children.length === 0) {
           container.innerHTML = '<div class="empty-section">No running scans</div>';
       }
+
   }
 
   // Will be needed for multiple scans

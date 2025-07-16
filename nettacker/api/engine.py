@@ -283,7 +283,7 @@ def new_scan():
         if key not in form_values:
             form_values[key] = nettacker_application_config[key]
 
-    task_result = new_scan_task(form_values)
+    new_scan_task(form_values)
 
     return jsonify(form_values), 200
 
