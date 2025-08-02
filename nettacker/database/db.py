@@ -3,6 +3,7 @@ import time
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 from nettacker import logger
 from nettacker.api.helpers import structure
@@ -47,12 +48,18 @@ def create_connection():
     if Config.db.engine.startswith("sqlite"):
         connection_args["check_same_thread"] = False
 
-    db_engine = create_engine(
-        db_inputs(Config.db.engine),
-        connect_args=connection_args,
-        pool_size=50,
-        pool_pre_ping=True,
-    )
+        db_engine = create_engine(
+            db_inputs(Config.db.engine),
+            connect_args=connection_args,
+            pool_pre_ping=True,
+        )
+    else:
+        db_engine = create_engine(
+            db_inputs(Config.db.engine),
+            connect_args=connection_args,
+            pool_size=50,
+            pool_pre_ping=True,
+        )
     Session = sessionmaker(bind=db_engine)
 
     return Session()
