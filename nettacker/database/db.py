@@ -3,7 +3,6 @@ import time
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
 
 from nettacker import logger
 from nettacker.api.helpers import structure
