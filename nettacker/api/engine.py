@@ -5,6 +5,7 @@ import os
 import random
 import string
 import time
+import uuid
 from threading import Thread
 from types import SimpleNamespace
 
@@ -50,11 +51,16 @@ log = logger.get_logger()
 
 app = Flask(__name__, template_folder=str(Config.path.web_static_dir))
 app.config.from_object(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 nettacker_path_config = Config.path
 nettacker_application_config = Config.settings.as_dict()
 nettacker_application_config.update(Config.api.as_dict())
 del nettacker_application_config["api_access_key"]
+
+FILE_UPLOAD_PARAMS = {"targets_list", "usernames_list", "passwords_list", "read_from_file"}
+ALLOWED_UPLOAD_EXTENSIONS = {"txt", "csv", "lst", "list"}
+uploaded_files = {}
 
 
 @app.errorhandler(400)
@@ -236,6 +242,35 @@ def sanitize_report_path_filename(report_path_filename):
     return safe_report_path
 
 
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_UPLOAD_EXTENSIONS
+
+
+@app.route("/upload/file", methods=["POST"])
+def upload_file():
+    api_key_is_valid(app, flask_request)
+    api_key = get_value(flask_request, "key")
+    param_name = get_value(flask_request, "param_name")
+    if "file" not in flask_request.files:
+        return jsonify(structure(status="error", msg=_("upload_no_file"))), 400
+    uploaded = flask_request.files["file"]
+    if uploaded.filename == "":
+        return jsonify(structure(status="error", msg=_("upload_no_file_selected"))), 400
+    if not allowed_file(uploaded.filename):
+        return jsonify(structure(status="error", msg=_("upload_file_type_not_allowed"))), 400
+    filename = secure_filename(uploaded.filename)
+    if not filename:
+        return jsonify(structure(status="error", msg=_("upload_invalid_filename"))), 400
+    unique_name = f"{uuid.uuid4().hex}_{filename}"
+    tmp_dir = nettacker_path_config.tmp_dir
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    uploaded.save(str(tmp_dir / unique_name))
+    if api_key not in uploaded_files:
+        uploaded_files[api_key] = {}
+    uploaded_files[api_key][param_name] = unique_name
+    return jsonify(structure(status="ok", msg=unique_name)), 200
+
+
 @app.route("/new/scan", methods=["GET", "POST"])
 def new_scan():
     """
@@ -246,7 +281,10 @@ def new_scan():
     """
     api_key_is_valid(app, flask_request)
     form_values = dict(flask_request.form)
-    # variables for future reference
+    api_key = get_value(flask_request, "key")
+    if api_key in uploaded_files:
+        for param_name, filename in uploaded_files.pop(api_key).items():
+            form_values[param_name] = str(nettacker_path_config.tmp_dir / filename)
     raw_report_path_filename = form_values.get("report_path_filename")
     http_header = form_values.get("http_header")
     report_path_filename = sanitize_report_path_filename(raw_report_path_filename)
