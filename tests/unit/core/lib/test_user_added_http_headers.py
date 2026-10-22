@@ -146,22 +146,11 @@ def test_perform_request_action_happy_path(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_send_request_uses_session_and_method(monkeypatch):
+async def test_send_request_uses_session_and_method():
     fake_resp = FakeResponse(status=202, body=b"accepted")
     fake_session = FakeSession({"get": fake_resp})
 
-    class _FakeClientSession:
-        def __init__(self, *a, **k):
-            self._sess = fake_session
-
-        async def __aenter__(self):
-            return self._sess
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setattr(http.aiohttp, "ClientSession", _FakeClientSession)
-    res = await http.send_request({"url": "http://example.com"}, "get")
+    res = await http.send_request({"url": "http://example.com"}, "get", fake_session)
     assert res["status_code"] == "202"
     assert res["content"] == b"accepted"
 
@@ -333,7 +322,7 @@ def test_httpengine_run_happy_path_merges_headers_and_random_ua(monkeypatch):
     monkeypatch.setattr(http.random, "choice", lambda seq: seq[0])
 
     # Patch send_request to bypass network
-    async def fake_send_request(options, method):
+    def fake_send_request(options, method):
         return {
             "reason": "OK",
             "url": options["url"],
@@ -343,7 +332,7 @@ def test_httpengine_run_happy_path_merges_headers_and_random_ua(monkeypatch):
             "responsetime": 0.1,
         }
 
-    monkeypatch.setattr(http, "send_request", fake_send_request)
+    monkeypatch.setattr(http, "send_request_sync", fake_send_request)
 
     sub_step = {
         "method": "get",
@@ -390,7 +379,7 @@ def test_httpengine_run_happy_path_merges_headers_and_random_ua(monkeypatch):
 def test_httpengine_run_with_iterative_response_match(monkeypatch):
     engine = DummyEngine()
 
-    async def fake_send_request(options, method):
+    def fake_send_request(options, method):
         return {
             "reason": "OK",
             "url": options["url"],
@@ -400,7 +389,7 @@ def test_httpengine_run_with_iterative_response_match(monkeypatch):
             "responsetime": 0.1,
         }
 
-    monkeypatch.setattr(http, "send_request", fake_send_request)
+    monkeypatch.setattr(http, "send_request_sync", fake_send_request)
 
     sub_step = {
         "method": "get",
@@ -453,7 +442,7 @@ def test_httpengine_run_with_dependent_on_temp_event(monkeypatch):
 
     engine = DepEngine()
 
-    async def fake_send_request(options, method):
+    def fake_send_request(options, method):
         # url should have been replaced with ABC123
         assert options["url"] == "http://owasp.org/token/ABC123"
         return {
@@ -465,7 +454,7 @@ def test_httpengine_run_with_dependent_on_temp_event(monkeypatch):
             "responsetime": 0.1,
         }
 
-    monkeypatch.setattr(http, "send_request", fake_send_request)
+    monkeypatch.setattr(http, "send_request_sync", fake_send_request)
 
     sub_step = {
         "method": "get",

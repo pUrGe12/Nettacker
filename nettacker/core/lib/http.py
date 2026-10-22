@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 import asyncio
+import atexit
 import copy
 import random
 import re
 import sys
+import threading
 import time
 
 import aiohttp
@@ -21,6 +23,68 @@ if sys.platform != "win32":
     import uvloop
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+
+# One event loop runs in a dedicated background thread for the lifetime of the
+# process and owns a single shared aiohttp.ClientSession. Worker threads submit
+# their request coroutines onto that loop with run_coroutine_threadsafe, so every
+# request reuses one connection pool (HTTP keep-alive) instead of building a
+# throwaway event loop and a brand-new TCP/TLS connection per request.
+_loop = None
+_loop_lock = threading.Lock()
+_session = None
+_session_lock = threading.Lock()
+
+
+def _get_loop():
+    """Return the shared background event loop, starting it on first use."""
+    global _loop
+    if _loop is None:
+        with _loop_lock:
+            if _loop is None:
+                loop = asyncio.new_event_loop()
+                thread = threading.Thread(
+                    target=loop.run_forever,
+                    name="nettacker-http-loop",
+                    daemon=True,
+                )
+                thread.start()
+                _loop = loop
+    return _loop
+
+
+async def _new_session():
+    # limit=0 leaves the number of simultaneous connections unbounded (the
+    # worker thread pool already caps concurrency); keep-alive, on by default,
+    # returns idle connections to the pool for reuse.
+    connector = aiohttp.TCPConnector(limit=0, ttl_dns_cache=300)
+    return aiohttp.ClientSession(connector=connector)
+
+
+def _get_session():
+    """Return the shared ClientSession, creating it on the loop on first use."""
+    global _session
+    if _session is None:
+        with _session_lock:
+            if _session is None:
+                loop = _get_loop()
+                _session = asyncio.run_coroutine_threadsafe(_new_session(), loop).result()
+    return _session
+
+
+@atexit.register
+def _close_shared_session():
+    """Best-effort shutdown of the shared session and loop at process exit."""
+    global _session, _loop
+    if _session is not None and _loop is not None:
+        try:
+            asyncio.run_coroutine_threadsafe(_session.close(), _loop).result(timeout=5)
+        except Exception:
+            pass
+        _session = None
+    if _loop is not None:
+        _loop.call_soon_threadsafe(_loop.stop)
+        _loop = None
 
 
 async def perform_request_action(action, request_options):
@@ -46,23 +110,42 @@ async def perform_request_action(action, request_options):
         }
 
 
-async def send_request(request_options, method):
+async def send_request(request_options, method, session):
     """
-    open an aiohttp session and dispatch a single request through it
+    dispatch a single request through an already-open aiohttp session
 
     Args:
         request_options: keyword arguments forwarded to perform_request_action
+        method: the HTTP method name to call on the session (e.g. "get", "post")
+        session: the aiohttp.ClientSession to send the request on
+
+    Returns:
+        the normalized response dict from perform_request_action
+    """
+    action = getattr(session, method, None)
+    response = await asyncio.gather(
+        *[asyncio.ensure_future(perform_request_action(action, request_options))]
+    )
+    return response[0]
+
+
+def send_request_sync(request_options, method):
+    """
+    blocking entry point for worker threads: run send_request on the shared
+    background loop against the shared session and wait for the result
+
+    Args:
+        request_options: keyword arguments forwarded to send_request
         method: the HTTP method name to call on the session (e.g. "get", "post")
 
     Returns:
         the normalized response dict from perform_request_action
     """
-    async with aiohttp.ClientSession() as session:
-        action = getattr(session, method, None)
-        response = await asyncio.gather(
-            *[asyncio.ensure_future(perform_request_action(action, request_options))]
-        )
-        return response[0]
+    loop = _get_loop()
+    session = _get_session()
+    return asyncio.run_coroutine_threadsafe(
+        send_request(request_options, method, session), loop
+    ).result()
 
 
 def response_conditions_matched(sub_step, response):
@@ -195,7 +278,7 @@ class HttpEngine(BaseEngine):
 
         Applies custom/random-user-agent headers, resolves any
         dependent-on-temp-event substitutions, then sends the request via
-        asyncio.run(send_request(...)) with retries, and hands the response
+        send_request_sync(...) with retries, and hands the response
         off to condition matching and event processing.
 
         Args:
@@ -241,7 +324,7 @@ class HttpEngine(BaseEngine):
         del sub_step["response"]
         for _i in range(options["retries"]):
             try:
-                response = asyncio.run(send_request(sub_step, backup_method))
+                response = send_request_sync(sub_step, backup_method)
                 response["content"] = response["content"].decode(errors="ignore")
                 break
             except Exception:
