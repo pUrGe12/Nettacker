@@ -115,6 +115,10 @@ class DbConfig(ConfigBase):
     synchronous_mode = "NORMAL"
 
 
+class ScanQueueConfig(ConfigBase):
+    workers = 2  # API scans that run at the same time; the rest wait in the queue
+
+
 class PathConfig:
     """
     home path for the framework (could be modify by user)
@@ -135,6 +139,7 @@ class PathConfig:
     payloads_dir = PACKAGE_PATH / "lib/payloads"
     release_name_file = PACKAGE_PATH / "release_name.txt"
     results_dir = CWD / ".nettacker/data/results"
+    scan_queue_file = CWD / ".nettacker/data/scan_queue.db"
     tmp_dir = CWD / ".nettacker/data/tmp"
     web_static_dir = PACKAGE_PATH / "web/static"
     user_agents_file = PACKAGE_PATH / "lib/payloads/User-Agents/web_browsers_user_agents.txt"
@@ -200,4 +205,5 @@ class Config:
     api = ApiConfig()
     db = DbConfig()
     path = PathConfig()
+    scan_queue = ScanQueueConfig()
     settings = DefaultSettings()
