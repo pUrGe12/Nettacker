@@ -1,5 +1,3 @@
-"""Queue for scans submitted through the API, run by worker threads in the API process."""
-
 import signal
 import threading
 
@@ -70,13 +68,13 @@ def get_scans():
 
 
 def start_workers(workers):
-    """Start the queue's worker threads in this process. Must run on the main thread."""
+    """Start the queue's worker threads in this process. Must run on the main thread.
+    This returns the consumer"""
     huey.storage.initialize_schema()
     # queued scans only live in memory, so tasks left from an earlier run can't be run
     huey.flush()
-    # an idle worker checks the queue at least once a second (huey's default is every 10s)
+    # Create a consumer in a separate thread that polls the queue every second, default is 10s
     consumer = huey.create_consumer(workers=workers, worker_type="thread", max_delay=1.0)
-    # consumer.start() replaces these handlers for its own run() loop, which isn't used here
     signals = [signal.SIGINT, signal.SIGTERM]
     if hasattr(signal, "SIGHUP"):
         signals.append(signal.SIGHUP)
