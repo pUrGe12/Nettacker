@@ -117,6 +117,7 @@ class DbConfig(ConfigBase):
 
 class ScanQueueConfig(ConfigBase):
     workers = 2  # API scans that run at the same time; the rest wait in the queue
+    poll_interval = 0.1  # max seconds an idle worker waits between queue checks (scan start delay)
 
 
 class PathConfig:

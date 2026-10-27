@@ -73,8 +73,9 @@ def start_workers(workers):
     huey.storage.initialize_schema()
     # queued scans only live in memory, so tasks left from an earlier run can't be run
     huey.flush()
-    # Create a consumer in a separate thread that polls the queue every second, default is 10s
-    consumer = huey.create_consumer(workers=workers, worker_type="thread", max_delay=1.0)
+    consumer = huey.create_consumer(
+        workers=workers, worker_type="thread", max_delay=Config.scan_queue.poll_interval
+    )
     signals = [signal.SIGINT, signal.SIGTERM]
     if hasattr(signal, "SIGHUP"):
         signals.append(signal.SIGHUP)
